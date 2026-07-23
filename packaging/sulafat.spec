@@ -10,13 +10,13 @@
 #
 
 Name:           sulafat
-Version:        0.1.0
+Version:        0.1.1
 Release:        0
 Summary:        Cliente SSH do ecossistema Lyra Enterprise Linux
 License:        GPL-3.0-or-later
 Group:          Productivity/Networking/SSH
 URL:            https://github.com/britors/Sulafat
-Source0:        %{name}-%{version}.tar.gz
+Source0:        %{name}-%{version}.tar.zst
 Source1:        vendor.tar.zst
 
 BuildRequires:  cargo

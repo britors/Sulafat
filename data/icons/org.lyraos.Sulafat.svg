@@ -1,20 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3bcf95"/>
-      <stop offset="1" stop-color="#1a7350"/>
+    <linearGradient id="bg" x1="24" y1="14" x2="104" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#42d7a0"/>
+      <stop offset="1" stop-color="#176747"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="35" y1="30" x2="91" y2="101" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#173b30"/>
+      <stop offset="1" stop-color="#091b15"/>
     </linearGradient>
   </defs>
 
   <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)"/>
+  <path d="M34 27h60a11 11 0 0 1 11 11v52a11 11 0 0 1-11 11H34a11 11 0 0 1-11-11V38a11 11 0 0 1 11-11Z"
+        fill="url(#screen)" stroke="#0c4f38" stroke-width="2"/>
 
-  <!-- terminal screen -->
-  <rect x="22" y="32" width="84" height="64" rx="7" fill="#0c1e18" opacity="0.92"/>
+  <!-- Window controls suggest a remote terminal without adding fine detail. -->
+  <circle cx="34" cy="38" r="3" fill="#ff776d"/>
+  <circle cx="44" cy="38" r="3" fill="#ffd166"/>
+  <circle cx="54" cy="38" r="3" fill="#56d98b"/>
+  <path d="M24 47h80" stroke="#39705f" stroke-width="2"/>
 
-  <!-- prompt chevron -->
-  <path d="M 38 54 L 54 64 L 38 74" fill="none" stroke="#eafff4" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- prompt line -->
-  <line x1="60" y1="74" x2="82" y2="74" stroke="#eafff4" stroke-width="6" stroke-linecap="round"/>
-  <!-- cursor block -->
-  <rect x="88" y="65" width="9" height="15" fill="#4fe0b0"/>
+  <!-- Shell prompt. -->
+  <path d="m34 60 9 7-9 7" fill="none" stroke="#eafff5" stroke-width="5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 74h10" stroke="#eafff5" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- A key is the visual shorthand for an authenticated SSH connection. -->
+  <circle cx="76" cy="65" r="9" fill="none" stroke="#54e5b3" stroke-width="6"/>
+  <path d="M82 72 96 86m-7-7 6-6m-1 11 5-5" fill="none" stroke="#54e5b3"
+        stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
