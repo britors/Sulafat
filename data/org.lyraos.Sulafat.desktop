@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Sulafat
+Name[pt_BR]=Sulafat
+GenericName=SSH Client
+GenericName[pt_BR]=Cliente SSH
+Comment=Connect to Linux/Unix hosts via SSH
+Comment[pt_BR]=Conecte-se a hosts Linux/Unix via SSH
+Exec=sulafat
+Icon=org.lyraos.Sulafat
+Terminal=false
+Categories=Network;RemoteAccess;TerminalEmulator;
+Keywords=ssh;terminal;remote;linux;shell;lyra;
+StartupNotify=true

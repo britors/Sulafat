@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.lyraos.Sulafat</id>
+  <name>Sulafat</name>
+  <name xml:lang="pt-BR">Sulafat</name>
+  <summary>Connect to Linux/Unix hosts via SSH</summary>
+  <summary xml:lang="pt-BR">Conecte-se a hosts Linux/Unix via SSH</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="org.lyraos">
+    <name>Lyra Enterprise Linux</name>
+  </developer>
+
+  <description>
+    <p>
+      Sulafat is the SSH client of the Lyra Enterprise Linux ecosystem, for connecting to
+      Linux/Unix desktops and servers. It works on any modern Linux distribution, with
+      GTK4/libadwaita giving it native visual integration with GNOME and Lyra.
+    </p>
+    <p xml:lang="pt-BR">
+      Sulafat é o cliente SSH do ecossistema Lyra Enterprise Linux, para conexão com
+      máquinas Linux/Unix (desktops e servidores). Funciona em qualquer distribuição Linux
+      moderna, com integração visual nativa ao GNOME e ao Lyra via GTK4/libadwaita.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Hosts managed straight from your existing ~/.ssh/config, with search, groups and color</li>
+      <li>Sessions in tabs, powered by the real OpenSSH client and an embedded VTE terminal</li>
+      <li>Keys, ssh-agent, known_hosts, certificates, ProxyJump: all handled by OpenSSH itself</li>
+      <li>Quick connect to user@host without saving a profile</li>
+      <li>One click to open a host's files over SFTP in the default file manager</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">org.lyraos.Sulafat.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Host list</caption>
+      <image>https://raw.githubusercontent.com/britors/Sulafat/main/data/screenshots/hosts.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/britors/Sulafat</url>
+  <url type="bugtracker">https://github.com/britors/Sulafat/issues</url>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-07-23">
+      <description>
+        <p>Initial release.</p>
+      </description>
+    </release>
+  </releases>
+
+  <provides>
+    <binary>sulafat</binary>
+  </provides>
+</component>

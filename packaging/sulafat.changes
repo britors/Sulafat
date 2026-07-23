@@ -1,0 +1,8 @@
+-------------------------------------------------------------------
+Thu Jul 23 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
+
+- Initial package for Sulafat 0.1.0, cliente SSH do ecossistema Lyra
+  Enterprise Linux: gerenciador de hosts a partir do ~/.ssh/config
+  (busca, grupos, cor), sessões SSH em abas via OpenSSH + VTE,
+  conexão rápida e abertura de SFTP no gerenciador de arquivos padrão.
+

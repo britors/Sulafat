@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3bcf95"/>
+      <stop offset="1" stop-color="#1a7350"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)"/>
+
+  <!-- terminal screen -->
+  <rect x="22" y="32" width="84" height="64" rx="7" fill="#0c1e18" opacity="0.92"/>
+
+  <!-- prompt chevron -->
+  <path d="M 38 54 L 54 64 L 38 74" fill="none" stroke="#eafff4" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- prompt line -->
+  <line x1="60" y1="74" x2="82" y2="74" stroke="#eafff4" stroke-width="6" stroke-linecap="round"/>
+  <!-- cursor block -->
+  <rect x="88" y="65" width="9" height="15" fill="#4fe0b0"/>
+</svg>

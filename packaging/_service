@@ -1,0 +1,7 @@
+<services>
+  <service name="cargo_vendor" mode="disabled">
+    <param name="tarball">sulafat-*.tar.gz</param>
+    <param name="compression">zst</param>
+    <param name="update">true</param>
+  </service>
+</services>

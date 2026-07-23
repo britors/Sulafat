@@ -1,0 +1,21 @@
+[package]
+name = "sulafat-gtk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GTK4/libadwaita frontend for Sulafat"
+
+[[bin]]
+name = "sulafat"
+path = "src/main.rs"
+
+[dependencies]
+sulafat-core = { path = "../sulafat-core" }
+gtk = { version = "0.11", package = "gtk4", features = ["v4_12"] }
+adw = { version = "0.9", package = "libadwaita", features = ["v1_5"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+vte4 = { version = "0.10.0", features = ["v0_80"] }
