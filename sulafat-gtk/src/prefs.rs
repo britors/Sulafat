@@ -52,7 +52,7 @@ impl Settings {
 /// Show the preferences window. Changes are saved immediately and forwarded via `on_change` so
 /// open terminals can be updated live.
 pub fn show(parent: &impl IsA<gtk::Widget>, current: Settings, on_change: impl Fn(Settings) + 'static) {
-    let dialog = adw::PreferencesDialog::builder().title("Preferências").build();
+    let dialog = adw::PreferencesDialog::builder().title("Configurações").build();
     let page = adw::PreferencesPage::new();
     let group = adw::PreferencesGroup::builder().title("Terminal").build();
 

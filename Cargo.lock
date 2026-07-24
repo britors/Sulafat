@@ -892,7 +892,7 @@ checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
 name = "sulafat-core"
-version = "0.1.1"
+version = "1.0.0"
 dependencies = [
  "directories",
  "glob",
@@ -906,7 +906,7 @@ dependencies = [
 
 [[package]]
 name = "sulafat-gtk"
-version = "0.1.1"
+version = "1.0.0"
 dependencies = [
  "gtk4",
  "libadwaita",

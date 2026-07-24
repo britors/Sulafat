@@ -115,7 +115,12 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
     let menu_btn = gtk::MenuButton::builder().icon_name("open-menu-symbolic").build();
     let app_menu = gio::Menu::new();
     app_menu.append(Some("Nova janela"), Some("win.new-window"));
-    app_menu.append(Some("Preferências"), Some("win.preferences"));
+    let settings_section = gio::Menu::new();
+    settings_section.append(Some("Configurações"), Some("win.preferences"));
+    app_menu.append_section(None, &settings_section);
+    let about_section = gio::Menu::new();
+    about_section.append(Some("Sobre o Sulafat"), Some("win.about"));
+    app_menu.append_section(None, &about_section);
     menu_btn.set_menu_model(Some(&app_menu));
     sidebar_header.pack_end(&menu_btn);
 
@@ -334,7 +339,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         move |_| quick_btn.popup()
     ));
 
-    // --- window actions (new window / preferences) --------------------------------------------
+    // --- window actions (new window / settings / about) ---------------------------------------
     let new_window_action = gio::SimpleAction::new("new-window", None);
     new_window_action.connect_activate(clone!(
         #[weak]
@@ -358,6 +363,26 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         }
     ));
     window.add_action(&prefs_action);
+
+    let about_action = gio::SimpleAction::new("about", None);
+    about_action.connect_activate(clone!(
+        #[weak]
+        window,
+        move |_, _| {
+            let dialog = adw::AboutDialog::builder()
+                .application_name("Sulafat")
+                .application_icon("org.lyraos.Sulafat")
+                .developer_name("Lyra Enterprise Linux")
+                .version(env!("CARGO_PKG_VERSION"))
+                .website("https://github.com/britors/Sulafat")
+                .issue_url("https://github.com/britors/Sulafat/issues")
+                .license_type(gtk::License::Gpl30)
+                .build();
+            dialog.set_developers(&["Rodrigo Brito"]);
+            dialog.present(Some(&window));
+        }
+    ));
+    window.add_action(&about_action);
 
     let focus_search_action = gio::SimpleAction::new("focus-search", None);
     focus_search_action.connect_activate(clone!(
