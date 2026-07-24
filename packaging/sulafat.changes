@@ -1,6 +1,12 @@
 -------------------------------------------------------------------
 Fri Jul 24 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
 
+- Rename the Lyra Enterprise Linux branding to Lyra Linux in the
+  application, metadata, documentation, and package description.
+
+-------------------------------------------------------------------
+Fri Jul 24 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
+
 - Move the application menu to the right side of the session header,
   keeping the host panel and connection controls on the left.
 
