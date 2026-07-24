@@ -122,7 +122,6 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
     about_section.append(Some("Sobre o Sulafat"), Some("win.about"));
     app_menu.append_section(None, &about_section);
     menu_btn.set_menu_model(Some(&app_menu));
-    sidebar_header.pack_end(&menu_btn);
 
     let sidebar_toolbar = adw::ToolbarView::new();
     sidebar_toolbar.add_top_bar(&sidebar_header);
@@ -164,7 +163,9 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
     ));
 
     let content_toolbar = adw::ToolbarView::new();
-    content_toolbar.add_top_bar(&adw::HeaderBar::new());
+    let content_header = adw::HeaderBar::new();
+    content_header.pack_end(&menu_btn);
+    content_toolbar.add_top_bar(&content_header);
     content_toolbar.add_top_bar(&tab_bar);
     content_toolbar.set_content(Some(&content_stack));
     let content_page = adw::NavigationPage::new(&content_toolbar, "Sessões");
