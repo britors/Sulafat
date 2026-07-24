@@ -1,6 +1,12 @@
 -------------------------------------------------------------------
 Fri Jul 24 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
 
+- Move the application menu to the right side of the session header,
+  keeping the host panel and connection controls on the left.
+
+-------------------------------------------------------------------
+Fri Jul 24 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
+
 - Update to Sulafat 1.0.0:
   * Add Settings and About entries to the application menu.
   * Add a native About dialog with project and version information.
