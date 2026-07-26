@@ -1,5 +1,6 @@
 mod host_dialog;
 mod host_list;
+mod launcher_badge;
 mod prefs;
 mod quick_connect;
 mod terminal_tab;

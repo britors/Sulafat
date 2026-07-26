@@ -14,6 +14,7 @@ use sulafat_core::ssh_config::{SshConfig, SshHost};
 
 use crate::host_dialog;
 use crate::host_list::{HostAction, HostList};
+use crate::launcher_badge;
 use crate::prefs::{self, Settings};
 use crate::quick_connect;
 use crate::terminal_tab::{color_dot_texture, TerminalTab};
@@ -56,9 +57,13 @@ impl AppState {
 }
 
 fn refresh(state: &Rc<RefCell<AppState>>, host_list: &HostList, tab_view: &adw::TabView) {
-    let state = state.borrow();
-    host_list.set_hosts(state.cfg.list_hosts(), &state.metadata);
-    host_list.set_connected(&connected_aliases(tab_view));
+    let window_id = Rc::as_ptr(state) as usize;
+    let borrowed = state.borrow();
+    host_list.set_hosts(borrowed.cfg.list_hosts(), &borrowed.metadata);
+    drop(borrowed);
+    let connected = connected_aliases(tab_view);
+    launcher_badge::report(window_id, connected.len() as u32);
+    host_list.set_connected(&connected);
 }
 
 /// Aliases of every tab in `tab_view` whose `ssh` child is currently running — used to light up
@@ -187,7 +192,13 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         tab_view,
         #[strong]
         host_list,
-        move || host_list.set_connected(&connected_aliases(&tab_view))
+        #[strong]
+        state,
+        move || {
+            let connected = connected_aliases(&tab_view);
+            launcher_badge::report(Rc::as_ptr(&state) as usize, connected.len() as u32);
+            host_list.set_connected(&connected);
+        }
     );
     tab_view.connect_close_page(|_, _| glib::Propagation::Proceed);
     // `tab_view.pages()`'s `items-changed` never fires in this gtk4-rs/libadwaita combo; the
@@ -517,6 +528,12 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
             );
             glib::Propagation::Stop
         }
+    ));
+
+    window.connect_destroy(clone!(
+        #[strong]
+        state,
+        move |_| launcher_badge::forget(Rc::as_ptr(&state) as usize)
     ));
 
     tab_view.connect_close_page(clone!(
