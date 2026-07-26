@@ -1,6 +1,7 @@
 //! Main window: `AdwNavigationSplitView` with the host sidebar and a tabbed session area.
 
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -18,6 +19,7 @@ use crate::quick_connect;
 use crate::terminal_tab::{color_dot_texture, TerminalTab};
 
 const RUNNING_DATA_KEY: &str = "sulafat-running";
+const ALIAS_DATA_KEY: &str = "sulafat-alias";
 
 struct AppState {
     cfg: SshConfig,
@@ -53,9 +55,34 @@ impl AppState {
     }
 }
 
-fn refresh(state: &Rc<RefCell<AppState>>, host_list: &HostList) {
+fn refresh(state: &Rc<RefCell<AppState>>, host_list: &HostList, tab_view: &adw::TabView) {
     let state = state.borrow();
     host_list.set_hosts(state.cfg.list_hosts(), &state.metadata);
+    host_list.set_connected(&connected_aliases(tab_view));
+}
+
+/// Aliases of every tab in `tab_view` whose `ssh` child is currently running — used to light up
+/// the "connected" indicator in the sidebar. Quick-connect tabs (no saved alias) aren't in the
+/// sidebar, so they're naturally excluded.
+fn connected_aliases(tab_view: &adw::TabView) -> HashSet<String> {
+    let pages = tab_view.pages();
+    (0..pages.n_items())
+        .filter_map(|i| pages.item(i).and_downcast::<adw::TabPage>())
+        .filter(is_running)
+        .filter_map(|page| alias_of(&page))
+        .collect()
+}
+
+fn alias_of(page: &adw::TabPage) -> Option<String> {
+    let child = page.child();
+    unsafe { child.data::<Option<String>>(ALIAS_DATA_KEY).and_then(|p| p.as_ref().clone()) }
+}
+
+/// The existing tab for `alias`, if any — regardless of whether its session is still connecting,
+/// running, or already ended, so `open_host` never spawns a second `ssh` for the same host.
+fn find_tab_by_alias(tab_view: &adw::TabView, alias: &str) -> Option<adw::TabPage> {
+    let pages = tab_view.pages();
+    (0..pages.n_items()).filter_map(|i| pages.item(i).and_downcast::<adw::TabPage>()).find(|page| alias_of(page).as_deref() == Some(alias))
 }
 
 fn sftp_uri(host: &SshHost) -> String {
@@ -155,11 +182,26 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         tab_view,
         move || content_stack.set_visible_child_name(if tab_view.n_pages() == 0 { "empty" } else { "tabs" })
     );
+    let update_connected = clone!(
+        #[weak]
+        tab_view,
+        #[strong]
+        host_list,
+        move || host_list.set_connected(&connected_aliases(&tab_view))
+    );
     tab_view.connect_close_page(|_, _| glib::Propagation::Proceed);
-    tab_view.pages().connect_items_changed(clone!(
+    // `tab_view.pages()`'s `items-changed` never fires in this gtk4-rs/libadwaita combo; the
+    // `n-pages` property notify is the reliable signal for "a page was added or removed" (e.g. a
+    // closed tab dropping out of the "connected" set).
+    tab_view.connect_n_pages_notify(clone!(
         #[strong]
         update_stack,
-        move |_, _, _, _| update_stack()
+        #[strong]
+        update_connected,
+        move |_| {
+            update_stack();
+            update_connected();
+        }
     ));
 
     let content_toolbar = adw::ToolbarView::new();
@@ -183,7 +225,8 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
     let spawn_tab = {
         let state = state.clone();
         let tab_view = tab_view.clone();
-        move |argv: Vec<String>, title: String, color: Option<String>| {
+        let update_connected = update_connected.clone();
+        move |argv: Vec<String>, title: String, color: Option<String>, alias: Option<String>| {
             let settings = state.borrow().settings.clone();
             let page_cell: Rc<RefCell<Option<adw::TabPage>>> = Rc::new(RefCell::new(None));
             let tab = Rc::new(TerminalTab::new(
@@ -200,6 +243,11 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                         }
                     }
                 ),
+                clone!(
+                    #[strong]
+                    update_connected,
+                    move |_running| update_connected()
+                ),
             ));
             let page = tab_view.append(tab.widget());
             page.set_title(&title);
@@ -209,6 +257,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                 Box::new(move || tab.is_running())
             };
             unsafe { tab.widget().set_data(RUNNING_DATA_KEY, getter) };
+            unsafe { tab.widget().set_data(ALIAS_DATA_KEY, alias) };
             *page_cell.borrow_mut() = Some(page.clone());
             tab_view.set_selected_page(&page);
             tab.terminal().grab_focus();
@@ -218,10 +267,17 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
     let open_host = {
         let state = state.clone();
         let spawn_tab = spawn_tab.clone();
+        let tab_view = tab_view.clone();
         move |host: SshHost| {
+            // Already has a tab (connecting, connected, or ended) for this host — just bring it
+            // forward instead of spawning a second `ssh` process for the same alias.
+            if let Some(page) = find_tab_by_alias(&tab_view, &host.alias) {
+                tab_view.set_selected_page(&page);
+                return;
+            }
             let argv = build_ssh_command(&ConnectTarget::Alias(host.alias.clone()));
             let color = state.borrow().metadata.get(&host.alias).and_then(|m| m.color.clone());
-            spawn_tab(argv, host.alias.clone(), color);
+            spawn_tab(argv, host.alias.clone(), color, Some(host.alias.clone()));
         }
     };
 
@@ -229,15 +285,22 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
     let on_action = {
         let state = state.clone();
         let host_list = host_list.clone();
+        let tab_view = tab_view.clone();
         let window = window.clone();
-        let app = app.clone();
         let open_host = open_host.clone();
         move |action: HostAction| match action {
             HostAction::Connect(host) => open_host(host),
-            HostAction::ConnectNewWindow(host) => build(&app, Some(host)),
+            HostAction::Disconnect(host) => {
+                // Menu-driven disconnect: go through the same close-page path a manual tab close
+                // would, so the "sessão ativa" confirmation and process teardown stay identical.
+                if let Some(page) = find_tab_by_alias(&tab_view, &host.alias) {
+                    tab_view.close_page(&page);
+                }
+            }
             HostAction::Edit(host, meta) => {
                 let state = state.clone();
                 let host_list = host_list.clone();
+                let tab_view = tab_view.clone();
                 let previous_alias = host.alias.clone();
                 let groups = state.borrow().metadata.groups();
                 host_dialog::edit(&window, Some(host), meta, &groups, move |result| {
@@ -251,7 +314,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                     s.metadata.set(new_host.alias.clone(), new_meta);
                     s.persist();
                     drop(s);
-                    refresh(&state, &host_list);
+                    refresh(&state, &host_list, &tab_view);
                 });
             }
             HostAction::Duplicate(host, meta) => {
@@ -264,7 +327,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                 s.metadata.set(new_alias, meta);
                 s.persist();
                 drop(s);
-                refresh(&state, &host_list);
+                refresh(&state, &host_list, &tab_view);
             }
             HostAction::OpenFiles(host) => {
                 gtk::UriLauncher::new(&sftp_uri(&host)).launch(Some(&window), None::<&gio::Cancellable>, |_| {});
@@ -272,6 +335,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
             HostAction::Delete(host) => {
                 let state = state.clone();
                 let host_list = host_list.clone();
+                let tab_view = tab_view.clone();
                 let alias = host.alias.clone();
                 confirm(
                     &window,
@@ -283,7 +347,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                         s.metadata.set(alias, Default::default());
                         s.persist();
                         drop(s);
-                        refresh(&state, &host_list);
+                        refresh(&state, &host_list, &tab_view);
                     },
                 );
             }
@@ -299,10 +363,13 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         state,
         #[strong]
         host_list,
+        #[strong]
+        tab_view,
         move |_| {
             let groups = state.borrow().metadata.groups();
             let state = state.clone();
             let host_list = host_list.clone();
+            let tab_view = tab_view.clone();
             host_dialog::edit(&window, None, Default::default(), &groups, move |result| {
                 let Some((new_host, new_meta)) = result else { return };
                 let mut s = state.borrow_mut();
@@ -310,7 +377,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                 s.metadata.set(new_host.alias, new_meta);
                 s.persist();
                 drop(s);
-                refresh(&state, &host_list);
+                refresh(&state, &host_list, &tab_view);
             });
         }
     ));
@@ -330,7 +397,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                     None => host.clone(),
                 },
             };
-            spawn_tab(build_ssh_command(&target), title, None);
+            spawn_tab(build_ssh_command(&target), title, None, None);
         }
     };
     quick_btn.set_popover(Some(&quick_connect::popover(open_quick)));
@@ -403,11 +470,14 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
             state,
             #[strong]
             host_list,
+            #[strong]
+            tab_view,
             move || {
                 if watcher.poll() {
-                    if let Ok(fresh) = SshConfig::load_from(state.borrow().cfg.path()) {
+                    let path = state.borrow().cfg.path().to_path_buf();
+                    if let Ok(fresh) = SshConfig::load_from(path) {
                         state.borrow_mut().cfg = fresh;
-                        refresh(&state, &host_list);
+                        refresh(&state, &host_list, &tab_view);
                     }
                 }
                 glib::ControlFlow::Continue
@@ -467,7 +537,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         }
     ));
 
-    refresh(&state, &host_list);
+    refresh(&state, &host_list, &tab_view);
 
     if let Some(host) = initial_host {
         open_host(host);

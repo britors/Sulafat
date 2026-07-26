@@ -2,7 +2,8 @@
 //! (rebuilt on every refresh — host counts here are small enough that this is simpler, and just
 //! as responsive, as a `ListView`/`ListStore`/factory pipeline).
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -13,12 +14,19 @@ use sulafat_core::metadata::{HostMeta, Metadata};
 use sulafat_core::ssh_config::SshHost;
 
 const ROW_DATA_KEY: &str = "sulafat-host-meta";
+const STATUS_STATE_KEY: &str = "sulafat-status-state";
+const STATUS_DOT_KEY: &str = "sulafat-status-dot";
+const CONNECT_MENU_KEY: &str = "sulafat-connect-menu";
+const CONNECT_MENU_INDEX: i32 = 0;
+
+const STATUS_CONNECTED: (f64, f64, f64) = (0.18, 0.71, 0.30);
+const STATUS_DISCONNECTED: (f64, f64, f64) = (0.85, 0.23, 0.23);
 
 /// Every context-menu / activation outcome the sidebar can produce; `window_main` is the one
 /// that actually acts on these (talking to `SshConfig`/`Metadata`, opening tabs and dialogs).
 pub enum HostAction {
     Connect(SshHost),
-    ConnectNewWindow(SshHost),
+    Disconnect(SshHost),
     Edit(SshHost, HostMeta),
     Duplicate(SshHost, HostMeta),
     OpenFiles(SshHost),
@@ -48,12 +56,28 @@ fn parse_hex_color(color: Option<&str>) -> (f64, f64, f64) {
     }
 }
 
-fn color_dot(color: Option<&str>) -> gtk::DrawingArea {
-    let (r, g, b) = parse_hex_color(color);
-    let area = gtk::DrawingArea::builder().content_width(12).content_height(12).valign(gtk::Align::Center).build();
+/// The circle next to the host name — a connection "farol": green while a session for this host
+/// is running, red otherwise. `connected` is shared with [`HostList::set_connected`], which
+/// flips it and asks the widget to redraw.
+fn status_dot(connected: Rc<Cell<bool>>) -> gtk::DrawingArea {
+    let area = gtk::DrawingArea::builder().content_width(12).content_height(12).valign(gtk::Align::Center).tooltip_text("Status da conexão").build();
     area.set_draw_func(move |_, cr, w, h| {
+        let (r, g, b) = if connected.get() { STATUS_CONNECTED } else { STATUS_DISCONNECTED };
         cr.set_source_rgb(r, g, b);
         cr.arc(f64::from(w) / 2.0, f64::from(h) / 2.0, f64::from(w.min(h)) / 2.0, 0.0, std::f64::consts::TAU);
+        let _ = cr.fill();
+    });
+    area
+}
+
+/// The user's chosen host color — shown as a small square (rather than the farol's circle) so
+/// the two indicators read as clearly distinct at a glance.
+fn color_square(color: Option<&str>) -> gtk::DrawingArea {
+    let (r, g, b) = parse_hex_color(color);
+    let area = gtk::DrawingArea::builder().content_width(10).content_height(10).valign(gtk::Align::Center).tooltip_text("Cor do host").build();
+    area.set_draw_func(move |_, cr, w, h| {
+        cr.set_source_rgb(r, g, b);
+        cr.rectangle(0.0, 0.0, f64::from(w), f64::from(h));
         let _ = cr.fill();
     });
     area
@@ -99,18 +123,22 @@ fn build_row(host: &SshHost, meta: &HostMeta, on_action: ActionHandler) -> adw::
         .build();
     unsafe { row.set_data(ROW_DATA_KEY, (host.clone(), meta.clone())) };
 
-    row.add_prefix(&color_dot(meta.color.as_deref()));
+    let connected_state = Rc::new(Cell::new(false));
+    let dot = status_dot(connected_state.clone());
+    row.add_prefix(&dot);
+    unsafe { row.set_data(STATUS_STATE_KEY, connected_state.clone()) };
+    unsafe { row.set_data(STATUS_DOT_KEY, dot) };
 
     let menu_btn = gtk::MenuButton::builder()
         .icon_name("view-more-symbolic")
         .valign(gtk::Align::Center)
         .css_classes(["flat"])
         .build();
+    row.add_suffix(&color_square(meta.color.as_deref()));
     row.add_suffix(&menu_btn);
 
     let menu = gio::Menu::new();
     menu.append(Some("Conectar"), Some("row.connect"));
-    menu.append(Some("Conectar em nova janela"), Some("row.connect-new-window"));
     if !host.read_only {
         menu.append(Some("Editar"), Some("row.edit"));
         menu.append(Some("Duplicar"), Some("row.duplicate"));
@@ -120,6 +148,7 @@ fn build_row(host: &SshHost, meta: &HostMeta, on_action: ActionHandler) -> adw::
         menu.append(Some("Excluir"), Some("row.delete"));
     }
     menu_btn.set_popover(Some(&gtk::PopoverMenu::from_model(Some(&menu))));
+    unsafe { row.set_data(CONNECT_MENU_KEY, menu) };
 
     let actions = gio::SimpleActionGroup::new();
     macro_rules! bind_action {
@@ -138,8 +167,24 @@ fn build_row(host: &SshHost, meta: &HostMeta, on_action: ActionHandler) -> adw::
             actions.add_action(&action);
         };
     }
-    bind_action!("connect", |host: SshHost, _meta: HostMeta| HostAction::Connect(host));
-    bind_action!("connect-new-window", |host: SshHost, _meta: HostMeta| HostAction::ConnectNewWindow(host));
+    // Single action for the menu's first entry: it dispatches `Connect` or `Disconnect`
+    // depending on the row's current farol state, and the label is kept in sync in
+    // `HostList::set_connected` (see `CONNECT_MENU_KEY`/`CONNECT_MENU_INDEX`).
+    let connect_action = gio::SimpleAction::new("connect", None);
+    connect_action.connect_activate(clone!(
+        #[weak]
+        row,
+        #[strong]
+        on_action,
+        #[strong]
+        connected_state,
+        move |_, _| {
+            let (host, _meta) = row_data(&row);
+            let action = if connected_state.get() { HostAction::Disconnect(host) } else { HostAction::Connect(host) };
+            dispatch(&on_action, action);
+        }
+    ));
+    actions.add_action(&connect_action);
     bind_action!("edit", HostAction::Edit);
     bind_action!("duplicate", HostAction::Duplicate);
     bind_action!("open-files", |host: SshHost, _meta: HostMeta| HostAction::OpenFiles(host));
@@ -150,6 +195,8 @@ fn build_row(host: &SshHost, meta: &HostMeta, on_action: ActionHandler) -> adw::
         #[strong]
         on_action,
         move |row| {
+            // A plain click always connects (or, if already connected, brings the existing tab
+            // forward — see `window_main::open_host`); disconnecting is a deliberate menu action.
             let (host, _meta) = row_data(row);
             dispatch(&on_action, HostAction::Connect(host));
         }
@@ -259,5 +306,34 @@ impl HostList {
         }
         self.list_box.invalidate_headers();
         self.list_box.invalidate_filter();
+    }
+
+    /// Updates the farol (green/red) on each row and its menu's "Conectar"/"Desconectar" entry
+    /// depending on whether the row's alias is in `aliases`. Cheap enough to call on every tab
+    /// open/close/exit — it never rebuilds rows.
+    pub fn set_connected(&self, aliases: &HashSet<String>) {
+        let mut child = self.list_box.first_child();
+        while let Some(row) = child {
+            child = row.next_sibling();
+            let Some(action_row) = row.downcast_ref::<adw::ActionRow>() else { continue };
+            let (host, _) = row_data(action_row);
+            let connected = aliases.contains(&host.alias);
+
+            if let Some(state) = unsafe { action_row.data::<Rc<Cell<bool>>>(STATUS_STATE_KEY) } {
+                let state = unsafe { state.as_ref() };
+                if state.get() == connected {
+                    continue;
+                }
+                state.set(connected);
+            }
+            if let Some(dot) = unsafe { action_row.data::<gtk::DrawingArea>(STATUS_DOT_KEY) } {
+                unsafe { dot.as_ref() }.queue_draw();
+            }
+            if let Some(menu) = unsafe { action_row.data::<gio::Menu>(CONNECT_MENU_KEY) } {
+                let menu = unsafe { menu.as_ref() };
+                menu.remove(CONNECT_MENU_INDEX);
+                menu.insert(CONNECT_MENU_INDEX, Some(if connected { "Desconectar" } else { "Conectar" }), Some("row.connect"));
+            }
+        }
     }
 }

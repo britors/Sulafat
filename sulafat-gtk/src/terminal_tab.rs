@@ -66,8 +66,15 @@ pub fn color_dot_texture(color: Option<&str>) -> gdk::MemoryTexture {
 impl TerminalTab {
     /// Builds the tab and spawns `argv` immediately. `on_close_requested` is called when the
     /// user presses "Fechar" on the session-ended overlay (closing the tab itself is
-    /// `window_main`'s job, via `AdwTabView`).
-    pub fn new(argv: Vec<String>, settings: &Settings, on_close_requested: impl Fn() + 'static) -> Self {
+    /// `window_main`'s job, via `AdwTabView`). `on_running_changed` fires whenever the child
+    /// process starts or exits, so callers can keep other UI (e.g. a sidebar "connected"
+    /// indicator) in sync without polling.
+    pub fn new(
+        argv: Vec<String>,
+        settings: &Settings,
+        on_close_requested: impl Fn() + 'static,
+        on_running_changed: impl Fn(bool) + 'static,
+    ) -> Self {
         let terminal = vte4::Terminal::new();
         terminal.set_scrollback_lines(i64::from(settings.scrollback_lines));
         if let Some(font) = &settings.font {
@@ -107,6 +114,7 @@ impl TerminalTab {
 
         let argv = Rc::new(argv);
         let running = Rc::new(Cell::new(false));
+        let on_running_changed: Rc<dyn Fn(bool)> = Rc::new(on_running_changed);
 
         let spawn_now = clone!(
             #[strong]
@@ -117,6 +125,8 @@ impl TerminalTab {
             running,
             #[strong]
             status_box,
+            #[strong]
+            on_running_changed,
             move || {
                 status_box.set_visible(false);
                 let cwd = glib::home_dir();
@@ -125,6 +135,7 @@ impl TerminalTab {
                 let envv: Vec<String> = std::env::vars().map(|(k, v)| format!("{k}={v}")).collect();
                 let envv_refs: Vec<&str> = envv.iter().map(String::as_str).collect();
                 let running_for_cb = running.clone();
+                let on_running_changed = on_running_changed.clone();
                 terminal.spawn_async(
                     vte4::PtyFlags::DEFAULT,
                     Some(cwd_str.as_str()),
@@ -137,6 +148,7 @@ impl TerminalTab {
                     move |result| {
                         if result.is_ok() {
                             running_for_cb.set(true);
+                            on_running_changed(true);
                         }
                     },
                 );
@@ -148,12 +160,15 @@ impl TerminalTab {
         terminal.connect_child_exited(clone!(
             #[strong]
             running,
+            #[strong]
+            on_running_changed,
             #[weak]
             status_box,
             #[weak]
             status_label,
             move |_terminal, status| {
                 running.set(false);
+                on_running_changed(false);
                 if status == 0 {
                     status_label.set_label("Sessão encerrada");
                 } else {
