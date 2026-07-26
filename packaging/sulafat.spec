@@ -12,7 +12,7 @@
 Name:           sulafat
 Version:        1.0.0
 Release:        0
-Summary:        Cliente SSH do ecossistema Lyra Linux
+Summary:        Cliente SSH do ecossistema Lyra OS
 License:        GPL-3.0-or-later
 Group:          Productivity/Networking/SSH
 URL:            https://github.com/britors/Sulafat
@@ -33,7 +33,7 @@ BuildRequires:  zstd
 Requires:       openssh-clients
 
 %description
-Sulafat é o cliente SSH do ecossistema Lyra Linux, para conexão com máquinas
+Sulafat é o cliente SSH do ecossistema Lyra OS, para conexão com máquinas
 Linux/Unix (desktops e servidores). É um aplicativo independente, utilizável em qualquer
 distribuição Linux moderna, com integração visual prioritária ao Lyra (GNOME/Wayland).
 

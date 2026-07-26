@@ -8,17 +8,17 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <developer id="org.lyraos">
-    <name>Lyra Linux</name>
+    <name>Lyra OS</name>
   </developer>
 
   <description>
     <p>
-      Sulafat is the SSH client of the Lyra Linux ecosystem, for connecting to
+      Sulafat is the SSH client of the Lyra OS ecosystem, for connecting to
       Linux/Unix desktops and servers. It works on any modern Linux distribution, with
       GTK4/libadwaita giving it native visual integration with GNOME and Lyra.
     </p>
     <p xml:lang="pt-BR">
-      Sulafat é o cliente SSH do ecossistema Lyra Linux, para conexão com
+      Sulafat é o cliente SSH do ecossistema Lyra OS, para conexão com
       máquinas Linux/Unix (desktops e servidores). Funciona em qualquer distribuição Linux
       moderna, com integração visual nativa ao GNOME e ao Lyra via GTK4/libadwaita.
     </p>

@@ -1,6 +1,6 @@
 # Sulafat
 
-Cliente SSH do ecossistema **Lyra Linux**, o par do Beam: enquanto o Beam conecta ao
+Cliente SSH do ecossistema **Lyra OS**, o par do Beam: enquanto o Beam conecta ao
 mundo Windows via RDP, o Sulafat conecta ao mundo Linux/Unix via SSH. Funciona em qualquer
 distribuição Linux moderna, com integração visual prioritária com o Lyra (GNOME/Wayland).
 

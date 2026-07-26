@@ -440,7 +440,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
             let dialog = adw::AboutDialog::builder()
                 .application_name("Sulafat")
                 .application_icon("org.lyraos.Sulafat")
-                .developer_name("Lyra Linux")
+                .developer_name("Lyra OS")
                 .version(env!("CARGO_PKG_VERSION"))
                 .website("https://github.com/britors/Sulafat")
                 .issue_url("https://github.com/britors/Sulafat/issues")
