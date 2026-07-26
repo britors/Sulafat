@@ -1,4 +1,16 @@
 -------------------------------------------------------------------
+Sun Jul 26 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
+
+- Fix a crash on saving a host or on external ~/.ssh/config changes,
+  and fix the session tab not showing after connecting.
+- Add a green/red connection status indicator next to each host in
+  the sidebar, with a "Conectar"/"Desconectar" menu entry that closes
+  the tab on disconnect and no longer opens a duplicate session for a
+  host that's already connected.
+- Embed the application and symbolic icons in the binary via a
+  compiled GResource.
+
+-------------------------------------------------------------------
 Fri Jul 24 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
 
 - Rename the Lyra Enterprise Linux branding to Lyra Linux in the
