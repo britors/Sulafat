@@ -908,6 +908,7 @@ dependencies = [
 name = "sulafat-gtk"
 version = "1.0.0"
 dependencies = [
+ "gio",
  "gtk4",
  "libadwaita",
  "serde",

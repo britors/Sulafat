@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/lyraos/Sulafat/icons">
+    <file>hicolor/scalable/apps/org.lyraos.Sulafat.svg</file>
+    <file>hicolor/symbolic/apps/org.lyraos.Sulafat-symbolic.svg</file>
+  </gresource>
+</gresources>
