@@ -1,4 +1,10 @@
 -------------------------------------------------------------------
+Wed Aug 05 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
+
+- Update to Sulafat 1.0.2:
+  * Remove the "New Window" entry from the application menu.
+
+-------------------------------------------------------------------
 Sun Jul 26 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
 
 - Badge the application's dock/taskbar icon with the number of active

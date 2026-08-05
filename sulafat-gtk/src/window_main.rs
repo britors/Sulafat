@@ -146,7 +146,6 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
 
     let menu_btn = gtk::MenuButton::builder().icon_name("open-menu-symbolic").build();
     let app_menu = gio::Menu::new();
-    app_menu.append(Some("Nova janela"), Some("win.new-window"));
     let settings_section = gio::Menu::new();
     settings_section.append(Some("Configurações"), Some("win.preferences"));
     app_menu.append_section(None, &settings_section);
@@ -418,15 +417,7 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         move |_| quick_btn.popup()
     ));
 
-    // --- window actions (new window / settings / about) ---------------------------------------
-    let new_window_action = gio::SimpleAction::new("new-window", None);
-    new_window_action.connect_activate(clone!(
-        #[weak]
-        app,
-        move |_, _| build(&app, None)
-    ));
-    window.add_action(&new_window_action);
-
+    // --- window actions (settings / about) ----------------------------------------------------
     let prefs_action = gio::SimpleAction::new("preferences", None);
     prefs_action.connect_activate(clone!(
         #[weak]

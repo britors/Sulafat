@@ -10,7 +10,7 @@
 #
 
 Name:           sulafat
-Version:        1.0.0
+Version:        1.0.2
 Release:        0
 Summary:        Cliente SSH do ecossistema Lyra OS
 License:        GPL-3.0-or-later

@@ -47,6 +47,11 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.0.2" date="2026-08-05">
+      <description>
+        <p>Removed the New Window entry from the application menu.</p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-07-24">
       <description>
         <p>First stable release, with Settings and About available from the application menu.</p>

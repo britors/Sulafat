@@ -15,8 +15,7 @@ const OBJECT_PATH: &str = "/org/lyraos/Sulafat";
 
 thread_local! {
     static CONNECTION: RefCell<Option<gio::DBusConnection>> = RefCell::new(None);
-    // Per-window active-session counts, summed into the single app-wide badge — more than one
-    // Sulafat window can be open at once via "Nova janela".
+    // Per-window active-session counts, summed into the single app-wide badge.
     static COUNTS: RefCell<HashMap<usize, u32>> = RefCell::new(HashMap::new());
 }
 
