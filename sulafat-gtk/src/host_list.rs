@@ -6,6 +6,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
 
+use crate::i18n::tr;
 use adw::prelude::*;
 use gtk::gio;
 use gtk::glib;
@@ -51,7 +52,11 @@ fn parse_hex_color(color: Option<&str>) -> (f64, f64, f64) {
     }
     let byte = |range: std::ops::Range<usize>| u8::from_str_radix(&hex[range], 16).ok();
     match (byte(0..2), byte(2..4), byte(4..6)) {
-        (Some(r), Some(g), Some(b)) => (f64::from(r) / 255.0, f64::from(g) / 255.0, f64::from(b) / 255.0),
+        (Some(r), Some(g), Some(b)) => (
+            f64::from(r) / 255.0,
+            f64::from(g) / 255.0,
+            f64::from(b) / 255.0,
+        ),
         _ => DEFAULT,
     }
 }
@@ -60,11 +65,28 @@ fn parse_hex_color(color: Option<&str>) -> (f64, f64, f64) {
 /// is running, red otherwise. `connected` is shared with [`HostList::set_connected`], which
 /// flips it and asks the widget to redraw.
 fn status_dot(connected: Rc<Cell<bool>>) -> gtk::DrawingArea {
-    let area = gtk::DrawingArea::builder().content_width(12).content_height(12).valign(gtk::Align::Center).tooltip_text("Status da conexão").build();
+    let area = gtk::DrawingArea::builder()
+        .content_width(12)
+        .content_height(12)
+        .valign(gtk::Align::Center)
+        .tooltip_text(tr("Connection status"))
+        .build();
+    let accessible_label = tr("Connection status");
+    area.update_property(&[gtk::accessible::Property::Label(&accessible_label)]);
     area.set_draw_func(move |_, cr, w, h| {
-        let (r, g, b) = if connected.get() { STATUS_CONNECTED } else { STATUS_DISCONNECTED };
+        let (r, g, b) = if connected.get() {
+            STATUS_CONNECTED
+        } else {
+            STATUS_DISCONNECTED
+        };
         cr.set_source_rgb(r, g, b);
-        cr.arc(f64::from(w) / 2.0, f64::from(h) / 2.0, f64::from(w.min(h)) / 2.0, 0.0, std::f64::consts::TAU);
+        cr.arc(
+            f64::from(w) / 2.0,
+            f64::from(h) / 2.0,
+            f64::from(w.min(h)) / 2.0,
+            0.0,
+            std::f64::consts::TAU,
+        );
         let _ = cr.fill();
     });
     area
@@ -74,7 +96,14 @@ fn status_dot(connected: Rc<Cell<bool>>) -> gtk::DrawingArea {
 /// the two indicators read as clearly distinct at a glance.
 fn color_square(color: Option<&str>) -> gtk::DrawingArea {
     let (r, g, b) = parse_hex_color(color);
-    let area = gtk::DrawingArea::builder().content_width(10).content_height(10).valign(gtk::Align::Center).tooltip_text("Cor do host").build();
+    let area = gtk::DrawingArea::builder()
+        .content_width(10)
+        .content_height(10)
+        .valign(gtk::Align::Center)
+        .tooltip_text(tr("Host color"))
+        .build();
+    let accessible_label = tr("Host color");
+    area.update_property(&[gtk::accessible::Property::Label(&accessible_label)]);
     area.set_draw_func(move |_, cr, w, h| {
         cr.set_source_rgb(r, g, b);
         cr.rectangle(0.0, 0.0, f64::from(w), f64::from(h));
@@ -86,7 +115,11 @@ fn color_square(color: Option<&str>) -> gtk::DrawingArea {
 fn row_data(row: &adw::ActionRow) -> (SshHost, HostMeta) {
     // Safe by construction: every row this module creates has `ROW_DATA_KEY` set exactly once,
     // right after construction, to a `(SshHost, HostMeta)` — nothing else ever writes this key.
-    unsafe { row.data::<(SshHost, HostMeta)>(ROW_DATA_KEY).map(|p| p.as_ref().clone()).expect("row created without host data") }
+    unsafe {
+        row.data::<(SshHost, HostMeta)>(ROW_DATA_KEY)
+            .map(|p| p.as_ref().clone())
+            .expect("row created without host data")
+    }
 }
 
 fn subtitle_for(host: &SshHost) -> String {
@@ -104,7 +137,7 @@ fn subtitle_for(host: &SshHost) -> String {
         parts.push(format!(":{port}"));
     }
     if host.read_only {
-        parts.push("somente leitura".to_string());
+        parts.push(tr("read-only"));
     }
     parts.join(" · ")
 }
@@ -131,21 +164,24 @@ fn build_row(host: &SshHost, meta: &HostMeta, on_action: ActionHandler) -> adw::
 
     let menu_btn = gtk::MenuButton::builder()
         .icon_name("view-more-symbolic")
+        .tooltip_text(tr("Host actions"))
         .valign(gtk::Align::Center)
         .css_classes(["flat"])
         .build();
+    let accessible_label = tr("Host actions");
+    menu_btn.update_property(&[gtk::accessible::Property::Label(&accessible_label)]);
     row.add_suffix(&color_square(meta.color.as_deref()));
     row.add_suffix(&menu_btn);
 
     let menu = gio::Menu::new();
-    menu.append(Some("Conectar"), Some("row.connect"));
+    menu.append(Some(&tr("Connect")), Some("row.connect"));
     if !host.read_only {
-        menu.append(Some("Editar"), Some("row.edit"));
-        menu.append(Some("Duplicar"), Some("row.duplicate"));
+        menu.append(Some(&tr("Edit")), Some("row.edit"));
+        menu.append(Some(&tr("Duplicate")), Some("row.duplicate"));
     }
-    menu.append(Some("Abrir arquivos"), Some("row.open-files"));
+    menu.append(Some(&tr("Open files")), Some("row.open-files"));
     if !host.read_only {
-        menu.append(Some("Excluir"), Some("row.delete"));
+        menu.append(Some(&tr("Delete")), Some("row.delete"));
     }
     menu_btn.set_popover(Some(&gtk::PopoverMenu::from_model(Some(&menu))));
     unsafe { row.set_data(CONNECT_MENU_KEY, menu) };
@@ -180,15 +216,23 @@ fn build_row(host: &SshHost, meta: &HostMeta, on_action: ActionHandler) -> adw::
         connected_state,
         move |_, _| {
             let (host, _meta) = row_data(&row);
-            let action = if connected_state.get() { HostAction::Disconnect(host) } else { HostAction::Connect(host) };
+            let action = if connected_state.get() {
+                HostAction::Disconnect(host)
+            } else {
+                HostAction::Connect(host)
+            };
             dispatch(&on_action, action);
         }
     ));
     actions.add_action(&connect_action);
     bind_action!("edit", HostAction::Edit);
     bind_action!("duplicate", HostAction::Duplicate);
-    bind_action!("open-files", |host: SshHost, _meta: HostMeta| HostAction::OpenFiles(host));
-    bind_action!("delete", |host: SshHost, _meta: HostMeta| HostAction::Delete(host));
+    bind_action!("open-files", |host: SshHost, _meta: HostMeta| {
+        HostAction::OpenFiles(host)
+    });
+    bind_action!("delete", |host: SshHost, _meta: HostMeta| {
+        HostAction::Delete(host)
+    });
     row.insert_action_group("row", Some(&actions));
 
     row.connect_activated(clone!(
@@ -216,10 +260,15 @@ impl HostList {
             .margin_end(12)
             .margin_top(6)
             .margin_bottom(6)
-            .placeholder_text("Buscar hosts…")
+            .placeholder_text(tr("Search hosts…"))
             .build();
+        let accessible_label = tr("Search hosts");
+        search_entry.update_property(&[gtk::accessible::Property::Label(&accessible_label)]);
 
-        let list_box = gtk::ListBox::builder().css_classes(["boxed-list"]).selection_mode(gtk::SelectionMode::None).build();
+        let list_box = gtk::ListBox::builder()
+            .css_classes(["boxed-list"])
+            .selection_mode(gtk::SelectionMode::None)
+            .build();
         list_box.set_filter_func(clone!(
             #[weak]
             search_entry,
@@ -230,11 +279,23 @@ impl HostList {
                 if query.is_empty() {
                     return true;
                 }
-                let Some(row) = row.downcast_ref::<adw::ActionRow>() else { return true };
+                let Some(row) = row.downcast_ref::<adw::ActionRow>() else {
+                    return true;
+                };
                 let (host, _) = row_data(row);
                 host.alias.to_lowercase().contains(&query)
-                    || host.host_name.as_deref().unwrap_or_default().to_lowercase().contains(&query)
-                    || host.user.as_deref().unwrap_or_default().to_lowercase().contains(&query)
+                    || host
+                        .host_name
+                        .as_deref()
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .contains(&query)
+                    || host
+                        .user
+                        .as_deref()
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .contains(&query)
             }
         ));
         search_entry.connect_search_changed(clone!(
@@ -244,12 +305,14 @@ impl HostList {
         ));
 
         list_box.set_header_func(|row, before| {
-            let Some(row) = row.downcast_ref::<adw::ActionRow>() else { return };
+            let Some(row) = row.downcast_ref::<adw::ActionRow>() else {
+                return;
+            };
             let (_, meta) = row_data(row);
-            let group = meta.group.clone().unwrap_or_else(|| "Sem grupo".to_string());
+            let group = meta.group.clone().unwrap_or_else(|| tr("No group"));
             let prev_group = before
                 .and_then(|b| b.downcast_ref::<adw::ActionRow>().map(row_data))
-                .map(|(_, m)| m.group.unwrap_or_else(|| "Sem grupo".to_string()));
+                .map(|(_, m)| m.group.unwrap_or_else(|| tr("No group")));
             if prev_group.as_deref() == Some(group.as_str()) {
                 row.set_header(None::<&gtk::Widget>);
             } else {
@@ -265,13 +328,21 @@ impl HostList {
             }
         });
 
-        let scroller = gtk::ScrolledWindow::builder().child(&list_box).vexpand(true).build();
+        let scroller = gtk::ScrolledWindow::builder()
+            .child(&list_box)
+            .vexpand(true)
+            .build();
 
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.append(&search_entry);
         root.append(&scroller);
 
-        Self { root, list_box, search_entry, on_action }
+        Self {
+            root,
+            list_box,
+            search_entry,
+            on_action,
+        }
     }
 
     pub fn widget(&self) -> &gtk::Box {
@@ -293,16 +364,27 @@ impl HostList {
             self.list_box.remove(&child);
         }
 
-        let mut entries: Vec<(SshHost, HostMeta)> =
-            hosts.into_iter().map(|h| { let meta = metadata.get(&h.alias).cloned().unwrap_or_default(); (h, meta) }).collect();
+        let mut entries: Vec<(SshHost, HostMeta)> = hosts
+            .into_iter()
+            .map(|h| {
+                let meta = metadata.get(&h.alias).cloned().unwrap_or_default();
+                (h, meta)
+            })
+            .collect();
         entries.sort_by(|(host_a, meta_a), (host_b, meta_b)| {
             let group_a = meta_a.group.clone().unwrap_or_default();
             let group_b = meta_b.group.clone().unwrap_or_default();
-            group_a.cmp(&group_b).then_with(|| host_a.alias.to_lowercase().cmp(&host_b.alias.to_lowercase()))
+            group_a.cmp(&group_b).then_with(|| {
+                host_a
+                    .alias
+                    .to_lowercase()
+                    .cmp(&host_b.alias.to_lowercase())
+            })
         });
 
         for (host, meta) in &entries {
-            self.list_box.append(&build_row(host, meta, self.on_action.clone()));
+            self.list_box
+                .append(&build_row(host, meta, self.on_action.clone()));
         }
         self.list_box.invalidate_headers();
         self.list_box.invalidate_filter();
@@ -315,7 +397,9 @@ impl HostList {
         let mut child = self.list_box.first_child();
         while let Some(row) = child {
             child = row.next_sibling();
-            let Some(action_row) = row.downcast_ref::<adw::ActionRow>() else { continue };
+            let Some(action_row) = row.downcast_ref::<adw::ActionRow>() else {
+                continue;
+            };
             let (host, _) = row_data(action_row);
             let connected = aliases.contains(&host.alias);
 
@@ -332,7 +416,12 @@ impl HostList {
             if let Some(menu) = unsafe { action_row.data::<gio::Menu>(CONNECT_MENU_KEY) } {
                 let menu = unsafe { menu.as_ref() };
                 menu.remove(CONNECT_MENU_INDEX);
-                menu.insert(CONNECT_MENU_INDEX, Some(if connected { "Desconectar" } else { "Conectar" }), Some("row.connect"));
+                let label = if connected {
+                    tr("Disconnect")
+                } else {
+                    tr("Connect")
+                };
+                menu.insert(CONNECT_MENU_INDEX, Some(&label), Some("row.connect"));
             }
         }
     }

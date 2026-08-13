@@ -1,5 +1,6 @@
 //! "Conexão rápida": connect to `[usuário@]host[:porta]` without creating a saved host.
 
+use crate::i18n::tr;
 use adw::prelude::*;
 use gtk::glib;
 use gtk::glib::clone;
@@ -7,11 +8,29 @@ use sulafat_core::command::parse_quick_target;
 
 /// A popover with a single entry; pressing Enter or the "Conectar" button calls `on_connect`
 /// with the parsed target and closes the popover. Invalid/empty input just disables the button.
-pub fn popover(on_connect: impl Fn(sulafat_core::command::ConnectTarget) + 'static) -> gtk::Popover {
-    let entry = gtk::Entry::builder().placeholder_text("usuário@host[:porta]").width_chars(28).build();
-    let connect_btn = gtk::Button::builder().label("Conectar").css_classes(["suggested-action"]).sensitive(false).build();
+pub fn popover(
+    on_connect: impl Fn(sulafat_core::command::ConnectTarget) + 'static,
+) -> gtk::Popover {
+    let entry = gtk::Entry::builder()
+        .placeholder_text(tr("user@host[:port]"))
+        .width_chars(28)
+        .build();
+    let accessible_label = tr("Quick connection target");
+    entry.update_property(&[gtk::accessible::Property::Label(&accessible_label)]);
+    let connect_btn = gtk::Button::builder()
+        .label(tr("Connect"))
+        .css_classes(["suggested-action"])
+        .sensitive(false)
+        .build();
 
-    let content = gtk::Box::builder().orientation(gtk::Orientation::Horizontal).spacing(6).margin_top(6).margin_bottom(6).margin_start(6).margin_end(6).build();
+    let content = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(6)
+        .margin_top(6)
+        .margin_bottom(6)
+        .margin_start(6)
+        .margin_end(6)
+        .build();
     content.append(&entry);
     content.append(&connect_btn);
 

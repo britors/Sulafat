@@ -21,3 +21,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1", features = ["derive"] }
 toml = "1"
 vte4 = { version = "0.10.0", features = ["v0_80"] }
+gettext-rs = { version = "0.7", features = ["gettext-system"] }

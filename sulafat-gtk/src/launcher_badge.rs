@@ -14,7 +14,7 @@ const APP_URI: &str = "application://org.lyraos.Sulafat.desktop";
 const OBJECT_PATH: &str = "/org/lyraos/Sulafat";
 
 thread_local! {
-    static CONNECTION: RefCell<Option<gio::DBusConnection>> = RefCell::new(None);
+    static CONNECTION: RefCell<Option<gio::DBusConnection>> = const { RefCell::new(None) };
     // Per-window active-session counts, summed into the single app-wide badge.
     static COUNTS: RefCell<HashMap<usize, u32>> = RefCell::new(HashMap::new());
 }
@@ -47,13 +47,21 @@ fn emit(count: u32) {
         if slot.is_none() {
             *slot = gio::bus_get_sync(gio::BusType::Session, None::<&gio::Cancellable>).ok();
         }
-        let Some(connection) = slot.as_ref() else { return };
+        let Some(connection) = slot.as_ref() else {
+            return;
+        };
 
         let properties = glib::VariantDict::new(None);
         properties.insert("count", count as i64);
         properties.insert("count-visible", count > 0);
         let params = (APP_URI, properties.end()).to_variant();
 
-        let _ = connection.emit_signal(None, OBJECT_PATH, "com.canonical.Unity.LauncherEntry", "Update", Some(&params));
+        let _ = connection.emit_signal(
+            None,
+            OBJECT_PATH,
+            "com.canonical.Unity.LauncherEntry",
+            "Update",
+            Some(&params),
+        );
     });
 }

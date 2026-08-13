@@ -12,7 +12,7 @@
 Name:           sulafat
 Version:        1.0.2
 Release:        0
-Summary:        Cliente SSH do ecossistema Lyra OS
+Summary:        SSH client for the Lyra OS ecosystem
 License:        GPL-3.0-or-later
 Group:          Productivity/Networking/SSH
 URL:            https://github.com/britors/Sulafat
@@ -26,9 +26,11 @@ BuildRequires:  gtk4-devel >= 4.12
 BuildRequires:  libadwaita-devel >= 1.5
 BuildRequires:  vte-devel >= 0.80
 BuildRequires:  pkgconfig
+BuildRequires:  python3
 BuildRequires:  desktop-file-utils
 BuildRequires:  appstream-glib
 BuildRequires:  fdupes
+BuildRequires:  gettext-tools
 BuildRequires:  zstd
 Requires:       openssh-clients
 
@@ -54,6 +56,9 @@ armazenada pelo Sulafat — isso é papel do ssh-agent e do GNOME Keyring, já i
 
 %build
 %{cargo_build}
+for locale in $(cat po/LINGUAS); do
+    msgfmt --check --check-format -o po/${locale}.mo po/${locale}.po
+done
 
 %install
 install -Dm0755 target/release/sulafat %{buildroot}%{_bindir}/sulafat
@@ -65,15 +70,20 @@ install -Dm0644 data/icons/org.lyraos.Sulafat.svg \
     %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/org.lyraos.Sulafat.svg
 install -Dm0644 data/icons/org.lyraos.Sulafat-symbolic.svg \
     %{buildroot}%{_datadir}/icons/hicolor/symbolic/apps/org.lyraos.Sulafat-symbolic.svg
+for locale in $(cat po/LINGUAS); do
+    install -Dm0644 po/${locale}.mo \
+        %{buildroot}%{_datadir}/locale/${locale}/LC_MESSAGES/sulafat.mo
+done
 
 desktop-file-validate %{buildroot}%{_datadir}/applications/org.lyraos.Sulafat.desktop
 appstream-util validate-relax --nonet \
     %{buildroot}%{_datadir}/metainfo/org.lyraos.Sulafat.metainfo.xml
 
 %check
-# GUI tests need a display and a real SSH server; only the toolkit-agnostic sulafat-core unit
-# tests (including the ~/.ssh/config parser's round-trip fidelity tests) run during package build.
-cargo test --offline -p sulafat-core
+# Widget construction is covered separately under a virtual display; unit tests need no display
+# or SSH server and include locale selection plus the core parser's round-trip fidelity tests.
+cargo test --offline --workspace
+python3 scripts/check-i18n.py
 
 %post
 %desktop_database_post
@@ -91,5 +101,8 @@ cargo test --offline -p sulafat-core
 %{_datadir}/metainfo/org.lyraos.Sulafat.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/org.lyraos.Sulafat.svg
 %{_datadir}/icons/hicolor/symbolic/apps/org.lyraos.Sulafat-symbolic.svg
+%lang(es_ES) %{_datadir}/locale/es_ES/LC_MESSAGES/sulafat.mo
+%lang(pt_BR) %{_datadir}/locale/pt_BR/LC_MESSAGES/sulafat.mo
+%lang(zh_CN) %{_datadir}/locale/zh_CN/LC_MESSAGES/sulafat.mo
 
 %changelog

@@ -1,0 +1,6 @@
+sulafat-gtk/src/host_dialog.rs
+sulafat-gtk/src/host_list.rs
+sulafat-gtk/src/prefs.rs
+sulafat-gtk/src/quick_connect.rs
+sulafat-gtk/src/terminal_tab.rs
+sulafat-gtk/src/window_main.rs

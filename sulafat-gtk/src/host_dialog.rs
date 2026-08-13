@@ -3,6 +3,7 @@
 //! Callback-based rather than `async` on purpose: `sulafat-gtk` has no async runtime (VTE is
 //! already callback-driven through the GLib main loop), so there's no executor to `.await` on.
 
+use crate::i18n::tr;
 use adw::prelude::*;
 use gtk::gdk;
 use gtk::gio;
@@ -32,57 +33,109 @@ pub fn edit(
     let is_new = initial.is_none();
     let base = initial.unwrap_or_else(|| SshHost::new(""));
 
-    let alias_row = adw::EntryRow::builder().title("Alias").text(&base.alias).build();
-    let host_name_row = adw::EntryRow::builder().title("HostName").text(base.host_name.clone().unwrap_or_default()).build();
-    let user_row = adw::EntryRow::builder().title("Usuário").text(base.user.clone().unwrap_or_default()).build();
-    let port_row = adw::SpinRow::builder()
-        .title("Porta")
-        .adjustment(&gtk::Adjustment::new(f64::from(base.port.unwrap_or(22)), 1.0, 65535.0, 1.0, 10.0, 0.0))
+    let alias_row = adw::EntryRow::builder()
+        .title(tr("Alias"))
+        .text(&base.alias)
         .build();
-    let proxy_jump_row = adw::EntryRow::builder().title("ProxyJump").text(base.proxy_jump.clone().unwrap_or_default()).build();
+    let host_name_row = adw::EntryRow::builder()
+        .title("HostName")
+        .text(base.host_name.clone().unwrap_or_default())
+        .build();
+    let user_row = adw::EntryRow::builder()
+        .title(tr("User"))
+        .text(base.user.clone().unwrap_or_default())
+        .build();
+    let port_row = adw::SpinRow::builder()
+        .title(tr("Port"))
+        .adjustment(&gtk::Adjustment::new(
+            f64::from(base.port.unwrap_or(22)),
+            1.0,
+            65535.0,
+            1.0,
+            10.0,
+            0.0,
+        ))
+        .build();
+    let proxy_jump_row = adw::EntryRow::builder()
+        .title("ProxyJump")
+        .text(base.proxy_jump.clone().unwrap_or_default())
+        .build();
 
-    let identity_file_row =
-        adw::EntryRow::builder().title("Arquivo de identidade (chave privada)").text(base.identity_file.clone().unwrap_or_default()).build();
-    let browse_btn = gtk::Button::builder().icon_name("document-open-symbolic").valign(gtk::Align::Center).css_classes(["flat"]).build();
+    let identity_file_row = adw::EntryRow::builder()
+        .title(tr("Identity file (private key)"))
+        .text(base.identity_file.clone().unwrap_or_default())
+        .build();
+    let browse_btn = gtk::Button::builder()
+        .icon_name("document-open-symbolic")
+        .valign(gtk::Align::Center)
+        .css_classes(["flat"])
+        .build();
     identity_file_row.add_suffix(&browse_btn);
 
-    let mut group_options: Vec<String> = vec!["Nenhum".to_string()];
+    let mut group_options: Vec<String> = vec![tr("None")];
     group_options.extend(existing_groups.iter().cloned());
-    group_options.push("Novo grupo…".to_string());
+    group_options.push(tr("New group…"));
     let new_group_index = group_options.len() - 1;
 
-    let group_row = adw::ComboRow::builder().title("Grupo").build();
-    let group_model = gtk::StringList::new(&group_options.iter().map(String::as_str).collect::<Vec<_>>());
+    let group_row = adw::ComboRow::builder().title(tr("Group")).build();
+    let group_model =
+        gtk::StringList::new(&group_options.iter().map(String::as_str).collect::<Vec<_>>());
     group_row.set_model(Some(&group_model));
-    let initial_group_index =
-        initial_meta.group.as_ref().and_then(|g| group_options.iter().position(|o| o == g)).unwrap_or(0);
+    let initial_group_index = initial_meta
+        .group
+        .as_ref()
+        .and_then(|g| group_options.iter().position(|o| o == g))
+        .unwrap_or(0);
     group_row.set_selected(initial_group_index as u32);
 
-    let new_group_row = adw::EntryRow::builder().title("Nome do novo grupo").visible(initial_group_index == new_group_index).build();
+    let new_group_row = adw::EntryRow::builder()
+        .title(tr("New group name"))
+        .visible(initial_group_index == new_group_index)
+        .build();
     group_row.connect_selected_notify(clone!(
         #[weak]
         new_group_row,
         move |row| new_group_row.set_visible(row.selected() as usize == new_group_index)
     ));
 
-    let color_dialog_btn = gtk::ColorDialogButton::builder().dialog(&gtk::ColorDialog::new()).valign(gtk::Align::Center).build();
+    let color_dialog_btn = gtk::ColorDialogButton::builder()
+        .dialog(&gtk::ColorDialog::new())
+        .valign(gtk::Align::Center)
+        .build();
     if let Some(hex) = &initial_meta.color {
         if let Ok(rgba) = gdk::RGBA::parse(hex) {
             color_dialog_btn.set_rgba(&rgba);
         }
     }
-    let color_row = adw::ActionRow::builder().title("Cor").build();
+    let color_row = adw::ActionRow::builder().title(tr("Color")).build();
     color_row.add_suffix(&color_dialog_btn);
 
-    let notes_row = adw::EntryRow::builder().title("Anotações").text(initial_meta.notes.clone().unwrap_or_default()).build();
+    let notes_row = adw::EntryRow::builder()
+        .title(tr("Notes"))
+        .text(initial_meta.notes.clone().unwrap_or_default())
+        .build();
 
-    let advanced_view = gtk::TextView::builder().monospace(true).top_margin(6).bottom_margin(6).left_margin(6).right_margin(6).build();
+    let advanced_view = gtk::TextView::builder()
+        .monospace(true)
+        .top_margin(6)
+        .bottom_margin(6)
+        .left_margin(6)
+        .right_margin(6)
+        .build();
     advanced_view.buffer().set_text(&base.extra);
-    let advanced_scroller = gtk::ScrolledWindow::builder().child(&advanced_view).min_content_height(120).build();
-    let advanced_expander = adw::ExpanderRow::builder().title("Opções avançadas").subtitle("Diretivas não mapeadas acima, texto livre").build();
+    let advanced_scroller = gtk::ScrolledWindow::builder()
+        .child(&advanced_view)
+        .min_content_height(120)
+        .build();
+    let advanced_expander = adw::ExpanderRow::builder()
+        .title(tr("Advanced options"))
+        .subtitle(tr("Directives not mapped above, free-form text"))
+        .build();
     advanced_expander.add_row(&advanced_scroller);
 
-    let connection_group = adw::PreferencesGroup::builder().title("Conexão").build();
+    let connection_group = adw::PreferencesGroup::builder()
+        .title(tr("Connection"))
+        .build();
     connection_group.add(&alias_row);
     connection_group.add(&host_name_row);
     connection_group.add(&user_row);
@@ -90,7 +143,9 @@ pub fn edit(
     connection_group.add(&proxy_jump_row);
     connection_group.add(&identity_file_row);
 
-    let organization_group = adw::PreferencesGroup::builder().title("Organização").build();
+    let organization_group = adw::PreferencesGroup::builder()
+        .title(tr("Organization"))
+        .build();
     organization_group.add(&group_row);
     organization_group.add(&new_group_row);
     organization_group.add(&color_row);
@@ -111,18 +166,29 @@ pub fn edit(
     content.append(&organization_group);
     content.append(&advanced_group);
 
-    let scroller = gtk::ScrolledWindow::builder().child(&content).propagate_natural_height(true).min_content_width(460).build();
+    let scroller = gtk::ScrolledWindow::builder()
+        .child(&content)
+        .propagate_natural_height(true)
+        .min_content_width(460)
+        .build();
 
     let dialog = adw::Dialog::builder()
-        .title(if is_new { "Nova conexão" } else { "Editar conexão" })
+        .title(if is_new {
+            tr("New connection")
+        } else {
+            tr("Edit connection")
+        })
         .content_width(500)
         .content_height(620)
         .build();
 
     let toolbar_view = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
-    let save_btn = gtk::Button::builder().label("Salvar").css_classes(["suggested-action"]).build();
-    let cancel_btn = gtk::Button::builder().label("Cancelar").build();
+    let save_btn = gtk::Button::builder()
+        .label(tr("Save"))
+        .css_classes(["suggested-action"])
+        .build();
+    let cancel_btn = gtk::Button::builder().label(tr("Cancel")).build();
     header.pack_start(&cancel_btn);
     header.pack_end(&save_btn);
     toolbar_view.add_top_bar(&header);
@@ -142,7 +208,9 @@ pub fn edit(
         #[weak]
         dialog,
         move |_| {
-            let file_dialog = gtk::FileDialog::builder().title("Selecionar chave privada").build();
+            let file_dialog = gtk::FileDialog::builder()
+                .title(tr("Select private key"))
+                .build();
             let root = dialog.root().and_downcast::<gtk::Window>();
             file_dialog.open(
                 root.as_ref(),
@@ -170,7 +238,8 @@ pub fn edit(
         }
     ));
 
-    let result: std::rc::Rc<std::cell::RefCell<Option<(SshHost, HostMeta)>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let result: std::rc::Rc<std::cell::RefCell<Option<(SshHost, HostMeta)>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
 
     save_btn.connect_clicked(clone!(
         #[weak]
@@ -191,7 +260,9 @@ pub fn edit(
             host.proxy_jump = non_empty(proxy_jump_row.text());
             host.identity_file = non_empty(identity_file_row.text());
             let buffer = advanced_view.buffer();
-            host.extra = buffer.text(&buffer.start_iter(), &buffer.end_iter(), true).to_string();
+            host.extra = buffer
+                .text(&buffer.start_iter(), &buffer.end_iter(), true)
+                .to_string();
 
             let selected = group_row.selected() as usize;
             let group = if selected == 0 {
@@ -201,7 +272,11 @@ pub fn edit(
             } else {
                 group_options.get(selected).cloned()
             };
-            let meta = HostMeta { group, color: Some(color_to_hex(&color_dialog_btn.rgba())), notes: non_empty(notes_row.text()) };
+            let meta = HostMeta {
+                group,
+                color: Some(color_to_hex(&color_dialog_btn.rgba())),
+                notes: non_empty(notes_row.text()),
+            };
 
             *result.borrow_mut() = Some((host, meta));
             dialog.close();

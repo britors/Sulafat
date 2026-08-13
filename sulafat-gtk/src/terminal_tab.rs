@@ -13,6 +13,7 @@ use gtk::glib;
 use gtk::glib::clone;
 use vte4::prelude::*;
 
+use crate::i18n::{format as tr_format, tr};
 use crate::prefs::Settings;
 
 /// A conservative "looks like a URL" pattern — good enough for clickable links in shell output,
@@ -60,7 +61,13 @@ pub fn color_dot_texture(color: Option<&str>) -> gdk::MemoryTexture {
         }
     }
     let bytes = glib::Bytes::from_owned(data);
-    gdk::MemoryTexture::new(SIZE, SIZE, gdk::MemoryFormat::R8g8b8a8Premultiplied, &bytes, (SIZE * 4) as usize)
+    gdk::MemoryTexture::new(
+        SIZE,
+        SIZE,
+        gdk::MemoryFormat::R8g8b8a8Premultiplied,
+        &bytes,
+        (SIZE * 4) as usize,
+    )
 }
 
 impl TerminalTab {
@@ -87,10 +94,24 @@ impl TerminalTab {
             terminal.match_set_cursor_name(tag, "pointer");
         }
 
-        let status_label = gtk::Label::builder().wrap(true).justify(gtk::Justification::Center).css_classes(["title-3"]).build();
-        let reconnect_btn = gtk::Button::builder().label("Reconectar").css_classes(["suggested-action", "pill"]).build();
-        let close_btn = gtk::Button::builder().label("Fechar").css_classes(["pill"]).build();
-        let button_box = gtk::Box::builder().orientation(gtk::Orientation::Horizontal).spacing(6).halign(gtk::Align::Center).build();
+        let status_label = gtk::Label::builder()
+            .wrap(true)
+            .justify(gtk::Justification::Center)
+            .css_classes(["title-3"])
+            .build();
+        let reconnect_btn = gtk::Button::builder()
+            .label(tr("Reconnect"))
+            .css_classes(["suggested-action", "pill"])
+            .build();
+        let close_btn = gtk::Button::builder()
+            .label(tr("Close"))
+            .css_classes(["pill"])
+            .build();
+        let button_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .spacing(6)
+            .halign(gtk::Align::Center)
+            .build();
         button_box.append(&reconnect_btn);
         button_box.append(&close_btn);
         let status_box = gtk::Box::builder()
@@ -170,9 +191,12 @@ impl TerminalTab {
                 running.set(false);
                 on_running_changed(false);
                 if status == 0 {
-                    status_label.set_label("Sessão encerrada");
+                    status_label.set_label(&tr("Session ended"));
                 } else {
-                    status_label.set_label(&format!("Sessão encerrada (código {status})"));
+                    status_label.set_label(&tr_format(
+                        "Session ended (code {status})",
+                        &[("status", &status.to_string())],
+                    ));
                 }
                 status_box.set_visible(true);
             }
@@ -188,7 +212,11 @@ impl TerminalTab {
         install_copy_paste_shortcuts(&terminal);
         install_url_click(&terminal, url_regex);
 
-        Self { overlay, terminal, running }
+        Self {
+            overlay,
+            terminal,
+            running,
+        }
     }
 
     pub fn widget(&self) -> &gtk::Overlay {
@@ -218,7 +246,10 @@ fn install_copy_paste_shortcuts(terminal: &vte4::Terminal) {
             glib::Propagation::Stop
         }
     ));
-    controller.add_shortcut(gtk::Shortcut::new(gtk::ShortcutTrigger::parse_string("<Ctrl><Shift>c"), Some(copy_action)));
+    controller.add_shortcut(gtk::Shortcut::new(
+        gtk::ShortcutTrigger::parse_string("<Ctrl><Shift>c"),
+        Some(copy_action),
+    ));
 
     let paste_action = gtk::CallbackAction::new(clone!(
         #[weak]
@@ -230,7 +261,10 @@ fn install_copy_paste_shortcuts(terminal: &vte4::Terminal) {
             glib::Propagation::Stop
         }
     ));
-    controller.add_shortcut(gtk::Shortcut::new(gtk::ShortcutTrigger::parse_string("<Ctrl><Shift>v"), Some(paste_action)));
+    controller.add_shortcut(gtk::Shortcut::new(
+        gtk::ShortcutTrigger::parse_string("<Ctrl><Shift>v"),
+        Some(paste_action),
+    ));
 
     terminal.add_controller(controller);
 }
@@ -244,7 +278,11 @@ fn install_url_click(terminal: &vte4::Terminal, url_regex: Option<vte4::Regex>) 
         move |_gesture, _n_press, x, y| {
             let matches = terminal.check_regex_simple_at(x, y, &[&url_regex], 0);
             if let Some(url) = matches.first() {
-                gtk::UriLauncher::new(url).launch(None::<&gtk::Window>, None::<&gio::Cancellable>, |_| {});
+                gtk::UriLauncher::new(url).launch(
+                    None::<&gtk::Window>,
+                    None::<&gio::Cancellable>,
+                    |_| {},
+                );
             }
         }
     ));
