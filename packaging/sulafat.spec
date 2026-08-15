@@ -31,6 +31,7 @@ BuildRequires:  desktop-file-utils
 BuildRequires:  appstream-glib
 BuildRequires:  fdupes
 BuildRequires:  gettext-tools
+BuildRequires:  openssh-clients
 BuildRequires:  zstd
 Requires:       openssh-clients
 
