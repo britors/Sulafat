@@ -8,7 +8,9 @@
 use super::{BlockLine, KnownDirective, ManagedBlock, RawLine, Segment, SshHost};
 
 fn find_managed_index(segments: &[Segment], alias: &str) -> Option<usize> {
-    segments.iter().position(|s| matches!(s, Segment::Managed(b) if b.alias == alias))
+    segments
+        .iter()
+        .position(|s| matches!(s, Segment::Managed(b) if b.alias == alias))
 }
 
 fn find_known_index(block: &ManagedBlock, directive: KnownDirective) -> Option<usize> {
@@ -19,7 +21,10 @@ fn find_known_index(block: &ManagedBlock, directive: KnownDirective) -> Option<u
 }
 
 fn last_known_index(block: &ManagedBlock) -> Option<usize> {
-    block.lines.iter().rposition(|l| matches!(l, BlockLine::Known { .. }))
+    block
+        .lines
+        .iter()
+        .rposition(|l| matches!(l, BlockLine::Known { .. }))
 }
 
 /// Split a raw line into `(leading_whitespace_and_keyword, terminator)`, so a replacement value
@@ -59,7 +64,13 @@ fn apply_known_field(block: &mut ManagedBlock, directive: KnownDirective, new_va
         }
         (None, Some(v)) => {
             let insert_at = last_known_index(block).map(|i| i + 1).unwrap_or(0);
-            block.lines.insert(insert_at, BlockLine::Known { directive, line: build_known_line(directive, v) });
+            block.lines.insert(
+                insert_at,
+                BlockLine::Known {
+                    directive,
+                    line: build_known_line(directive, v),
+                },
+            );
         }
         (None, None) => {}
     }
@@ -71,7 +82,9 @@ fn replace_extra_lines(block: &mut ManagedBlock, extra: &str) {
     block.lines.retain(|l| matches!(l, BlockLine::Known { .. }));
     if !extra.is_empty() {
         for line in extra.split('\n') {
-            block.lines.push(BlockLine::Other(RawLine(format!("{line}\n"))));
+            block
+                .lines
+                .push(BlockLine::Other(RawLine(format!("{line}\n"))));
         }
     }
 }
@@ -88,13 +101,21 @@ fn rewrite_block(block: &mut ManagedBlock, host: &SshHost) {
     apply_known_field(block, KnownDirective::HostName, host.host_name.as_deref());
     apply_known_field(block, KnownDirective::User, host.user.as_deref());
     apply_known_field(block, KnownDirective::Port, port_value(host).as_deref());
-    apply_known_field(block, KnownDirective::IdentityFile, host.identity_file.as_deref());
+    apply_known_field(
+        block,
+        KnownDirective::IdentityFile,
+        host.identity_file.as_deref(),
+    );
     apply_known_field(block, KnownDirective::ProxyJump, host.proxy_jump.as_deref());
     replace_extra_lines(block, &host.extra);
 }
 
 fn build_new_block(host: &SshHost) -> ManagedBlock {
-    let mut block = ManagedBlock { alias: host.alias.clone(), header: RawLine(format!("Host {}\n", host.alias)), lines: Vec::new() };
+    let mut block = ManagedBlock {
+        alias: host.alias.clone(),
+        header: RawLine(format!("Host {}\n", host.alias)),
+        lines: Vec::new(),
+    };
     for (directive, value) in [
         (KnownDirective::HostName, host.host_name.clone()),
         (KnownDirective::User, host.user.clone()),
@@ -103,12 +124,17 @@ fn build_new_block(host: &SshHost) -> ManagedBlock {
         (KnownDirective::ProxyJump, host.proxy_jump.clone()),
     ] {
         if let Some(v) = value {
-            block.lines.push(BlockLine::Known { directive, line: build_known_line(directive, &v) });
+            block.lines.push(BlockLine::Known {
+                directive,
+                line: build_known_line(directive, &v),
+            });
         }
     }
     if !host.extra.is_empty() {
         for line in host.extra.split('\n') {
-            block.lines.push(BlockLine::Other(RawLine(format!("{line}\n"))));
+            block
+                .lines
+                .push(BlockLine::Other(RawLine(format!("{line}\n"))));
         }
     }
     block
@@ -162,7 +188,11 @@ pub(super) fn upsert(segments: &mut Vec<Segment>, host: &SshHost) {
 
 /// Upsert under a possibly-renamed alias: `previous_alias` locates the block to edit even when
 /// `host.alias` differs from it (renaming), falling back to appending a new block otherwise.
-pub(super) fn upsert_renaming(segments: &mut Vec<Segment>, previous_alias: Option<&str>, host: &SshHost) {
+pub(super) fn upsert_renaming(
+    segments: &mut Vec<Segment>,
+    previous_alias: Option<&str>,
+    host: &SshHost,
+) {
     let idx = previous_alias.and_then(|a| find_managed_index(segments, a));
     match idx {
         Some(idx) => {
@@ -198,7 +228,12 @@ mod tests {
         let mut segments = parsed("# comment\nHost prod\n    HostName 10.0.0.1\n    Compression yes\n\nHost other\n    User x\n");
         // A real caller round-trips `extra` from the host it just loaded (here, "Compression
         // yes", the block's one unmapped directive) unless the user edited "Opções avançadas".
-        let host = SshHost { alias: "prod".into(), host_name: Some("10.0.0.2".into()), extra: "    Compression yes".into(), ..Default::default() };
+        let host = SshHost {
+            alias: "prod".into(),
+            host_name: Some("10.0.0.2".into()),
+            extra: "    Compression yes".into(),
+            ..Default::default()
+        };
         upsert(&mut segments, &host);
         let out = render(&segments);
         assert_eq!(out, "# comment\nHost prod\n    HostName 10.0.0.2\n    Compression yes\n\nHost other\n    User x\n");
@@ -207,7 +242,12 @@ mod tests {
     #[test]
     fn clearing_a_field_removes_its_line() {
         let mut segments = parsed("Host prod\n    HostName 10.0.0.1\n    User admin\n");
-        let host = SshHost { alias: "prod".into(), host_name: Some("10.0.0.1".into()), user: None, ..Default::default() };
+        let host = SshHost {
+            alias: "prod".into(),
+            host_name: Some("10.0.0.1".into()),
+            user: None,
+            ..Default::default()
+        };
         upsert(&mut segments, &host);
         assert_eq!(render(&segments), "Host prod\n    HostName 10.0.0.1\n");
     }
@@ -224,12 +264,16 @@ mod tests {
             ..Default::default()
         };
         upsert(&mut segments, &host);
-        assert_eq!(render(&segments), "Host prod\n    HostName 10.0.0.1\n    User admin\n    # note\n");
+        assert_eq!(
+            render(&segments),
+            "Host prod\n    HostName 10.0.0.1\n    User admin\n    # note\n"
+        );
     }
 
     #[test]
     fn advanced_options_text_replaces_extra_lines_only() {
-        let mut segments = parsed("Host prod\n    HostName 10.0.0.1\n    Compression yes\n    # old note\n");
+        let mut segments =
+            parsed("Host prod\n    HostName 10.0.0.1\n    Compression yes\n    # old note\n");
         let host = SshHost {
             alias: "prod".into(),
             host_name: Some("10.0.0.1".into()),
@@ -246,30 +290,49 @@ mod tests {
     #[test]
     fn new_host_is_appended_with_separator() {
         let mut segments = parsed("Host prod\n    HostName 10.0.0.1\n");
-        let host = SshHost { alias: "staging".into(), host_name: Some("10.0.0.2".into()), ..Default::default() };
+        let host = SshHost {
+            alias: "staging".into(),
+            host_name: Some("10.0.0.2".into()),
+            ..Default::default()
+        };
         upsert(&mut segments, &host);
-        assert_eq!(render(&segments), "Host prod\n    HostName 10.0.0.1\n\nHost staging\n    HostName 10.0.0.2\n");
+        assert_eq!(
+            render(&segments),
+            "Host prod\n    HostName 10.0.0.1\n\nHost staging\n    HostName 10.0.0.2\n"
+        );
     }
 
     #[test]
     fn new_host_on_file_missing_trailing_newline_still_terminates_previous_block() {
         let mut segments = parsed("Host prod\n    HostName 10.0.0.1");
-        let host = SshHost { alias: "staging".into(), host_name: Some("10.0.0.2".into()), ..Default::default() };
+        let host = SshHost {
+            alias: "staging".into(),
+            host_name: Some("10.0.0.2".into()),
+            ..Default::default()
+        };
         upsert(&mut segments, &host);
-        assert_eq!(render(&segments), "Host prod\n    HostName 10.0.0.1\n\nHost staging\n    HostName 10.0.0.2\n");
+        assert_eq!(
+            render(&segments),
+            "Host prod\n    HostName 10.0.0.1\n\nHost staging\n    HostName 10.0.0.2\n"
+        );
     }
 
     #[test]
     fn new_host_on_empty_file_has_no_leading_separator() {
         let mut segments = parsed("");
-        let host = SshHost { alias: "staging".into(), host_name: Some("10.0.0.2".into()), ..Default::default() };
+        let host = SshHost {
+            alias: "staging".into(),
+            host_name: Some("10.0.0.2".into()),
+            ..Default::default()
+        };
         upsert(&mut segments, &host);
         assert_eq!(render(&segments), "Host staging\n    HostName 10.0.0.2\n");
     }
 
     #[test]
     fn removing_a_host_deletes_its_whole_block() {
-        let mut segments = parsed("Host prod\n    HostName 10.0.0.1\n\nHost staging\n    User dev\n");
+        let mut segments =
+            parsed("Host prod\n    HostName 10.0.0.1\n\nHost staging\n    User dev\n");
         assert!(remove(&mut segments, "prod"));
         assert_eq!(render(&segments), "\nHost staging\n    User dev\n");
     }
@@ -284,7 +347,11 @@ mod tests {
     #[test]
     fn renaming_alias_updates_header_and_keeps_matching_by_previous_alias() {
         let mut segments = parsed("Host prod\n    HostName 10.0.0.1\n");
-        let host = SshHost { alias: "prod-db".into(), host_name: Some("10.0.0.1".into()), ..Default::default() };
+        let host = SshHost {
+            alias: "prod-db".into(),
+            host_name: Some("10.0.0.1".into()),
+            ..Default::default()
+        };
         upsert_renaming(&mut segments, Some("prod"), &host);
         assert_eq!(render(&segments), "Host prod-db\n    HostName 10.0.0.1\n");
     }

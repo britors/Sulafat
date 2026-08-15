@@ -13,7 +13,10 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 #[derive(Debug, thiserror::Error)]
 pub enum WatchError {
     #[error("falha ao observar {path}: {source}")]
-    Notify { path: PathBuf, source: notify::Error },
+    Notify {
+        path: PathBuf,
+        source: notify::Error,
+    },
 }
 
 /// Watches a config file's parent directory (not the file itself) because editors typically
@@ -27,26 +30,41 @@ pub struct ConfigWatcher {
 impl ConfigWatcher {
     pub fn watch(path: impl AsRef<Path>) -> Result<Self, WatchError> {
         let path = path.as_ref().to_path_buf();
-        let dir = path.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."));
+        let dir = path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
         let (tx, rx) = mpsc::channel();
 
         let target = path.clone();
         let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| {
             let Ok(event) = res else { return };
-            if !matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)) {
+            if !matches!(
+                event.kind,
+                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
+            ) {
                 return;
             }
             if event.paths.iter().any(|p| p == &target) {
                 let _ = tx.send(());
             }
         })
-        .map_err(|e| WatchError::Notify { path: dir.clone(), source: e })?;
+        .map_err(|e| WatchError::Notify {
+            path: dir.clone(),
+            source: e,
+        })?;
 
         watcher
             .watch(&dir, RecursiveMode::NonRecursive)
-            .map_err(|e| WatchError::Notify { path: dir.clone(), source: e })?;
+            .map_err(|e| WatchError::Notify {
+                path: dir.clone(),
+                source: e,
+            })?;
 
-        Ok(Self { _watcher: watcher, receiver: rx })
+        Ok(Self {
+            _watcher: watcher,
+            receiver: rx,
+        })
     }
 
     /// A change was observed since the last call. Non-blocking.
@@ -95,6 +113,9 @@ mod tests {
         fs::rename(&tmp, &path).unwrap();
 
         thread::sleep(DEBOUNCE);
-        assert!(watcher.poll(), "rename over the watched path should be observed");
+        assert!(
+            watcher.poll(),
+            "rename over the watched path should be observed"
+        );
     }
 }

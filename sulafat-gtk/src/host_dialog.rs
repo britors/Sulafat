@@ -10,7 +10,7 @@ use gtk::gio;
 use gtk::glib;
 use gtk::glib::clone;
 use sulafat_core::metadata::HostMeta;
-use sulafat_core::ssh_config::SshHost;
+use sulafat_core::ssh_config::{validate_host, SshHost};
 
 fn color_to_hex(rgba: &gdk::RGBA) -> String {
     format!(
@@ -28,7 +28,7 @@ pub fn edit(
     initial: Option<SshHost>,
     initial_meta: HostMeta,
     existing_groups: &[String],
-    on_result: impl Fn(Option<(SshHost, HostMeta)>) + 'static,
+    on_result: impl Fn((SshHost, HostMeta)) -> Result<(), String> + 'static,
 ) {
     let is_new = initial.is_none();
     let base = initial.unwrap_or_else(|| SshHost::new(""));
@@ -238,14 +238,13 @@ pub fn edit(
         }
     ));
 
-    let result: std::rc::Rc<std::cell::RefCell<Option<(SshHost, HostMeta)>>> =
-        std::rc::Rc::new(std::cell::RefCell::new(None));
+    let on_result = std::rc::Rc::new(on_result);
 
     save_btn.connect_clicked(clone!(
         #[weak]
         dialog,
         #[strong]
-        result,
+        on_result,
         #[strong]
         base,
         move |_| {
@@ -278,15 +277,17 @@ pub fn edit(
                 notes: non_empty(notes_row.text()),
             };
 
-            *result.borrow_mut() = Some((host, meta));
-            dialog.close();
+            if let Err(error) = validate_host(&host)
+                .map_err(|e| e.to_string())
+                .and_then(|_| on_result((host, meta)))
+            {
+                let alert = adw::AlertDialog::new(Some(&tr("Could not save")), Some(&error));
+                alert.add_response("ok", &tr("OK"));
+                alert.present(Some(&dialog));
+            } else {
+                dialog.close();
+            }
         }
-    ));
-
-    dialog.connect_closed(clone!(
-        #[strong]
-        result,
-        move |_| on_result(result.borrow_mut().take())
     ));
 
     dialog.present(Some(parent));

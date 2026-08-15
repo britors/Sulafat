@@ -27,23 +27,28 @@ struct AppState {
     cfg: SshConfig,
     metadata: Metadata,
     settings: Settings,
+    load_error: Option<String>,
 }
 
 impl AppState {
     fn load() -> Self {
-        let cfg = SshConfig::load().unwrap_or_else(|e| {
-            tracing::error!("falha ao carregar ~/.ssh/config: {e}");
-            // A config we can't load is treated like an empty one; the user can still create
-            // hosts (though saving will surface the same underlying error).
-            SshConfig::load_from(std::env::temp_dir().join("unreachable-sulafat-config"))
-                .expect("empty in-memory config")
-        });
+        let (cfg, load_error) = match SshConfig::load() {
+            Ok(cfg) => (cfg, None),
+            Err(e) => {
+                tracing::error!("falha ao carregar ~/.ssh/config: {e}");
+                (
+                    SshConfig::empty_at_default_path().expect("default SSH path"),
+                    Some(e.to_string()),
+                )
+            }
+        };
         let metadata = Metadata::load().unwrap_or_default();
         let settings = Settings::load();
         Self {
             cfg,
             metadata,
             settings,
+            load_error,
         }
     }
 
@@ -56,15 +61,28 @@ impl AppState {
             .collect()
     }
 
-    fn persist(&mut self) {
-        if let Err(e) = self.cfg.save() {
-            tracing::error!("falha ao salvar ~/.ssh/config: {e}");
-        }
+    fn persist(&mut self) -> Result<(), String> {
+        self.cfg.save().map_err(|e| e.to_string())?;
         let known = self.known_aliases();
-        if let Err(e) = self.metadata.save(&known) {
-            tracing::error!("falha ao salvar metadados: {e}");
+        self.metadata
+            .save(&known)
+            .map_err(|e| format!("SSH config salvo, mas os metadados falharam: {e}"))
+    }
+
+    fn reload_persisted(&mut self) {
+        if let Ok(cfg) = SshConfig::load_from(self.cfg.path()) {
+            self.cfg = cfg;
+        }
+        if let Ok(metadata) = Metadata::load() {
+            self.metadata = metadata;
         }
     }
+}
+
+fn show_error(parent: &impl IsA<gtk::Widget>, message: &str) {
+    let dialog = adw::AlertDialog::new(Some(&tr("Could not save")), Some(message));
+    dialog.add_response("ok", &tr("OK"));
+    dialog.present(Some(parent));
 }
 
 fn refresh(state: &Rc<RefCell<AppState>>, host_list: &HostList, tab_view: &adw::TabView) {
@@ -182,6 +200,10 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
     let app_menu = gio::Menu::new();
     let settings_section = gio::Menu::new();
     settings_section.append(Some(&tr("Settings")), Some("win.preferences"));
+    settings_section.append(
+        Some(&tr("Restore latest backup")),
+        Some("win.restore-backup"),
+    );
     app_menu.append_section(None, &settings_section);
     let about_section = gio::Menu::new();
     about_section.append(Some(&tr("About Sulafat")), Some("win.about"));
@@ -365,22 +387,29 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                 let tab_view = tab_view.clone();
                 let previous_alias = host.alias.clone();
                 let groups = state.borrow().metadata.groups();
-                host_dialog::edit(&window, Some(host), meta, &groups, move |result| {
-                    let Some((new_host, new_meta)) = result else {
-                        return;
-                    };
-                    let mut s = state.borrow_mut();
-                    if new_host.alias == previous_alias {
-                        s.cfg.upsert_host(new_host.clone());
-                    } else {
-                        s.cfg
-                            .upsert_host_renaming(&previous_alias, new_host.clone());
-                    }
-                    s.metadata.set(new_host.alias.clone(), new_meta);
-                    s.persist();
-                    drop(s);
-                    refresh(&state, &host_list, &tab_view);
-                });
+                host_dialog::edit(
+                    &window,
+                    Some(host),
+                    meta,
+                    &groups,
+                    move |(new_host, new_meta)| {
+                        let mut s = state.borrow_mut();
+                        if new_host.alias == previous_alias {
+                            s.cfg.upsert_host(new_host.clone());
+                        } else {
+                            s.cfg
+                                .upsert_host_renaming(&previous_alias, new_host.clone());
+                        }
+                        s.metadata.set(new_host.alias.clone(), new_meta);
+                        let saved = s.persist();
+                        if saved.is_err() {
+                            s.reload_persisted();
+                        }
+                        drop(s);
+                        refresh(&state, &host_list, &tab_view);
+                        saved
+                    },
+                );
             }
             HostAction::Duplicate(host, meta) => {
                 let mut s = state.borrow_mut();
@@ -390,9 +419,15 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                 new_host.alias = new_alias.clone();
                 s.cfg.upsert_host(new_host);
                 s.metadata.set(new_alias, meta);
-                s.persist();
+                let saved = s.persist();
+                if saved.is_err() {
+                    s.reload_persisted();
+                }
                 drop(s);
                 refresh(&state, &host_list, &tab_view);
+                if let Err(error) = saved {
+                    show_error(&window, &error);
+                }
             }
             HostAction::OpenFiles(host) => {
                 gtk::UriLauncher::new(&sftp_uri(&host)).launch(
@@ -406,17 +441,27 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
                 let host_list = host_list.clone();
                 let tab_view = tab_view.clone();
                 let alias = host.alias.clone();
+                let error_parent = window.clone();
                 confirm(
                     &window,
                     &tr("Delete host?"),
-                    &tr_format("Delete “{alias}” from ~/.ssh/config? A backup is always kept in config.sulafat.bak.", &[("alias", &alias)]),
+                    &tr_format(
+                        "Delete “{alias}” from ~/.ssh/config? Three backup generations are kept.",
+                        &[("alias", &alias)],
+                    ),
                     move || {
                         let mut s = state.borrow_mut();
                         s.cfg.remove_host(&alias);
                         s.metadata.set(alias, Default::default());
-                        s.persist();
+                        let saved = s.persist();
+                        if saved.is_err() {
+                            s.reload_persisted();
+                        }
                         drop(s);
                         refresh(&state, &host_list, &tab_view);
+                        if let Err(error) = saved {
+                            show_error(&error_parent, &error);
+                        }
                     },
                 );
             }
@@ -439,17 +484,24 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
             let state = state.clone();
             let host_list = host_list.clone();
             let tab_view = tab_view.clone();
-            host_dialog::edit(&window, None, Default::default(), &groups, move |result| {
-                let Some((new_host, new_meta)) = result else {
-                    return;
-                };
-                let mut s = state.borrow_mut();
-                s.cfg.upsert_host(new_host.clone());
-                s.metadata.set(new_host.alias, new_meta);
-                s.persist();
-                drop(s);
-                refresh(&state, &host_list, &tab_view);
-            });
+            host_dialog::edit(
+                &window,
+                None,
+                Default::default(),
+                &groups,
+                move |(new_host, new_meta)| {
+                    let mut s = state.borrow_mut();
+                    s.cfg.upsert_host(new_host.clone());
+                    s.metadata.set(new_host.alias, new_meta);
+                    let saved = s.persist();
+                    if saved.is_err() {
+                        s.reload_persisted();
+                    }
+                    drop(s);
+                    refresh(&state, &host_list, &tab_view);
+                    saved
+                },
+            );
         }
     ));
     empty_new_btn.connect_clicked(clone!(
@@ -494,6 +546,31 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         }
     ));
     window.add_action(&prefs_action);
+
+    let restore_action = gio::SimpleAction::new("restore-backup", None);
+    restore_action.connect_activate(clone!(
+        #[weak]
+        window,
+        #[strong]
+        state,
+        #[strong]
+        host_list,
+        #[strong]
+        tab_view,
+        move |_, _| {
+            let restored = state
+                .borrow_mut()
+                .cfg
+                .restore_backup(1)
+                .map_err(|e| e.to_string());
+            if let Err(error) = restored {
+                show_error(&window, &error);
+            } else {
+                refresh(&state, &host_list, &tab_view);
+            }
+        }
+    ));
+    window.add_action(&restore_action);
 
     let about_action = gio::SimpleAction::new("about", None);
     about_action.connect_activate(clone!(
@@ -623,6 +700,20 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
     }
 
     window.present();
+    let load_error = state.borrow().load_error.clone();
+    if let Some(error) = load_error {
+        add_btn.set_sensitive(false);
+        empty_new_btn.set_sensitive(false);
+        let dialog = adw::AlertDialog::new(
+            Some(&tr("Could not load SSH configuration")),
+            Some(&format!(
+                "{error}\n\n{}",
+                tr("Sulafat is read-only until the configuration can be loaded.")
+            )),
+        );
+        dialog.add_response("ok", &tr("OK"));
+        dialog.present(Some(&window));
+    }
 }
 
 fn is_running(page: &adw::TabPage) -> bool {

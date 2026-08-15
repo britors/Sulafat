@@ -87,7 +87,10 @@ fn classify_body(body: Vec<RawLine>) -> Vec<BlockLine> {
                 let idx = directive.index();
                 if !seen[idx] {
                     seen[idx] = true;
-                    return BlockLine::Known { directive, line: raw };
+                    return BlockLine::Known {
+                        directive,
+                        line: raw,
+                    };
                 }
             }
             BlockLine::Other(raw)
@@ -114,7 +117,10 @@ pub(super) fn parse(text: &str) -> Vec<Segment> {
                 let mut body = Vec::new();
                 while i < raw_lines.len() {
                     let c = strip_terminator(&raw_lines[i].0);
-                    if matches!(classify_top(c), LineKind::HostHeader(_) | LineKind::MatchHeader) {
+                    if matches!(
+                        classify_top(c),
+                        LineKind::HostHeader(_) | LineKind::MatchHeader
+                    ) {
                         break;
                     }
                     body.push(raw_lines[i].clone());
@@ -127,7 +133,8 @@ pub(super) fn parse(text: &str) -> Vec<Segment> {
                     // next block are left alone; there's no reliable way to tell whether they
                     // belong to this entry or the next one, and they're an edge case either way.
                     let mut trailing_blanks = Vec::new();
-                    while matches!(body.last(), Some(l) if strip_terminator(&l.0).trim().is_empty()) {
+                    while matches!(body.last(), Some(l) if strip_terminator(&l.0).trim().is_empty())
+                    {
                         trailing_blanks.push(body.pop().expect("just checked with body.last()"));
                     }
                     trailing_blanks.reverse();
@@ -152,7 +159,10 @@ pub(super) fn parse(text: &str) -> Vec<Segment> {
                 i += 1;
                 while i < raw_lines.len() {
                     let c = strip_terminator(&raw_lines[i].0);
-                    if matches!(classify_top(c), LineKind::HostHeader(_) | LineKind::MatchHeader) {
+                    if matches!(
+                        classify_top(c),
+                        LineKind::HostHeader(_) | LineKind::MatchHeader
+                    ) {
                         break;
                     }
                     block_lines.push(raw_lines[i].clone());
@@ -203,7 +213,11 @@ mod tests {
 
     fn roundtrip(text: &str) {
         let segments = parse(text);
-        assert_eq!(render(&segments), text, "round-trip mismatch for:\n{text:?}");
+        assert_eq!(
+            render(&segments),
+            text,
+            "round-trip mismatch for:\n{text:?}"
+        );
     }
 
     #[test]
@@ -245,18 +259,25 @@ mod tests {
 
     #[test]
     fn managed_block_classifies_known_and_extra_lines() {
-        let segments = parse("Host prod\n    HostName 10.0.0.1\n    User admin\n    Compression yes\n");
+        let segments =
+            parse("Host prod\n    HostName 10.0.0.1\n    User admin\n    Compression yes\n");
         let Segment::Managed(block) = &segments[0] else {
             panic!("expected a managed block")
         };
         assert_eq!(block.alias, "prod");
         assert!(matches!(
             &block.lines[0],
-            BlockLine::Known { directive: KnownDirective::HostName, .. }
+            BlockLine::Known {
+                directive: KnownDirective::HostName,
+                ..
+            }
         ));
         assert!(matches!(
             &block.lines[1],
-            BlockLine::Known { directive: KnownDirective::User, .. }
+            BlockLine::Known {
+                directive: KnownDirective::User,
+                ..
+            }
         ));
         assert!(matches!(&block.lines[2], BlockLine::Other(_)));
     }
@@ -269,7 +290,10 @@ mod tests {
         };
         assert!(matches!(
             &block.lines[0],
-            BlockLine::Known { directive: KnownDirective::Port, .. }
+            BlockLine::Known {
+                directive: KnownDirective::Port,
+                ..
+            }
         ));
         assert!(matches!(&block.lines[1], BlockLine::Other(_)));
     }

@@ -9,6 +9,7 @@ mod writer;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -25,8 +26,13 @@ pub enum KnownDirective {
 }
 
 impl KnownDirective {
-    pub(crate) const ALL: [KnownDirective; 5] =
-        [Self::HostName, Self::User, Self::Port, Self::IdentityFile, Self::ProxyJump];
+    pub(crate) const ALL: [KnownDirective; 5] = [
+        Self::HostName,
+        Self::User,
+        Self::Port,
+        Self::IdentityFile,
+        Self::ProxyJump,
+    ];
 
     fn keyword(self) -> &'static str {
         match self {
@@ -39,11 +45,16 @@ impl KnownDirective {
     }
 
     fn from_keyword(s: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|d| d.keyword().eq_ignore_ascii_case(s))
+        Self::ALL
+            .into_iter()
+            .find(|d| d.keyword().eq_ignore_ascii_case(s))
     }
 
     fn index(self) -> usize {
-        Self::ALL.iter().position(|d| *d == self).expect("KnownDirective::ALL is exhaustive")
+        Self::ALL
+            .iter()
+            .position(|d| *d == self)
+            .expect("KnownDirective::ALL is exhaustive")
     }
 }
 
@@ -54,7 +65,10 @@ pub(crate) struct RawLine(pub String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BlockLine {
-    Known { directive: KnownDirective, line: RawLine },
+    Known {
+        directive: KnownDirective,
+        line: RawLine,
+    },
     Other(RawLine),
 }
 
@@ -95,7 +109,10 @@ pub struct SshHost {
 
 impl SshHost {
     pub fn new(alias: impl Into<String>) -> Self {
-        Self { alias: alias.into(), ..Default::default() }
+        Self {
+            alias: alias.into(),
+            ..Default::default()
+        }
     }
 
     fn set_known(&mut self, directive: KnownDirective, value: String) {
@@ -130,16 +147,33 @@ pub enum ConfigError {
     Io { path: PathBuf, source: io::Error },
     #[error("não foi possível determinar o diretório home do usuário")]
     NoHomeDir,
+    #[error("campo {field} inválido: {reason}")]
+    Validation {
+        field: &'static str,
+        reason: &'static str,
+    },
+    #[error("o arquivo foi alterado externamente; recarregue antes de salvar")]
+    Conflict,
+    #[error("o OpenSSH recusou a configuração: {0}")]
+    InvalidSshConfig(String),
 }
 
 impl ConfigError {
     fn io(path: impl Into<PathBuf>, source: io::Error) -> Self {
-        Self::Io { path: path.into(), source }
+        Self::Io {
+            path: path.into(),
+            source,
+        }
     }
 }
 
 fn value_of(content: &str) -> &str {
-    content.trim_start().split_once(char::is_whitespace).map(|(_, rest)| rest).unwrap_or("").trim()
+    content
+        .trim_start()
+        .split_once(char::is_whitespace)
+        .map(|(_, rest)| rest)
+        .unwrap_or("")
+        .trim()
 }
 
 fn host_from_managed(block: &ManagedBlock) -> SshHost {
@@ -170,7 +204,11 @@ fn host_from_raw_host_block(lines: &[RawLine]) -> Option<SshHost> {
     if parser::is_single_plain_pattern(&patterns) {
         return None;
     }
-    let mut host = SshHost { alias: patterns.join(" "), read_only: true, ..Default::default() };
+    let mut host = SshHost {
+        alias: patterns.join(" "),
+        read_only: true,
+        ..Default::default()
+    };
     for raw in &lines[1..] {
         let content = parser::strip_terminator(&raw.0);
         let trimmed = content.trim_start();
@@ -216,9 +254,13 @@ fn resolve_includes(base_dir: &Path, patterns: &[String]) -> Vec<SshHost> {
         } else {
             base_dir.join(pattern).to_string_lossy().into_owned()
         };
-        let Ok(paths) = glob::glob(&full_pattern) else { continue };
+        let Ok(paths) = glob::glob(&full_pattern) else {
+            continue;
+        };
         for entry in paths.flatten() {
-            let Ok(contents) = fs::read_to_string(&entry) else { continue };
+            let Ok(contents) = fs::read_to_string(&entry) else {
+                continue;
+            };
             for seg in parser::parse(&contents) {
                 let host = match &seg {
                     Segment::Managed(block) => Some(host_from_managed(block)),
@@ -241,16 +283,71 @@ fn default_path() -> Result<PathBuf, ConfigError> {
 
 /// A parsed `~/.ssh/config` (or an arbitrary path, for tests), plus every host flattened out of
 /// its `Include`d files.
+#[derive(Clone)]
 pub struct SshConfig {
     path: PathBuf,
     segments: Vec<Segment>,
     included_hosts: Vec<SshHost>,
+    loaded_contents: Option<Vec<u8>>,
+}
+
+fn validate_single_line(
+    field: &'static str,
+    value: &str,
+    allow_spaces: bool,
+) -> Result<(), ConfigError> {
+    if value.is_empty() || value.starts_with('-') || value.chars().any(char::is_control) {
+        return Err(ConfigError::Validation {
+            field,
+            reason: "vazio, iniciado por hífen ou com caractere de controle",
+        });
+    }
+    if !allow_spaces && value.chars().any(char::is_whitespace) {
+        return Err(ConfigError::Validation {
+            field,
+            reason: "espaços não são permitidos",
+        });
+    }
+    Ok(())
+}
+
+pub fn validate_host(host: &SshHost) -> Result<(), ConfigError> {
+    validate_single_line("Alias", &host.alias, false)?;
+    for (field, value, spaces) in [
+        ("HostName", host.host_name.as_deref(), false),
+        ("User", host.user.as_deref(), false),
+        ("IdentityFile", host.identity_file.as_deref(), true),
+        ("ProxyJump", host.proxy_jump.as_deref(), false),
+    ] {
+        if let Some(value) = value {
+            validate_single_line(field, value, spaces)?;
+        }
+    }
+    if host.extra.as_bytes().contains(&0) {
+        return Err(ConfigError::Validation {
+            field: "Opções avançadas",
+            reason: "NUL não é permitido",
+        });
+    }
+    Ok(())
 }
 
 impl SshConfig {
     /// Load `~/.ssh/config`. A missing file is treated as an empty config, not an error.
     pub fn load() -> Result<Self, ConfigError> {
         Self::load_from(default_path()?)
+    }
+
+    /// Empty editable model at the real default path, used by frontends only to preserve the
+    /// destination while a load error is being shown. It must not be saved until reloaded.
+    pub fn empty_at_default_path() -> Result<Self, ConfigError> {
+        let path = default_path()?;
+        Ok(Self {
+            path,
+            segments: Vec::new(),
+            included_hosts: Vec::new(),
+            loaded_contents: None,
+        })
     }
 
     pub fn load_from(path: impl Into<PathBuf>) -> Result<Self, ConfigError> {
@@ -261,9 +358,17 @@ impl SshConfig {
             Err(e) => return Err(ConfigError::io(&path, e)),
         };
         let segments = parser::parse(&contents);
-        let base_dir = path.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."));
+        let base_dir = path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
         let included_hosts = resolve_includes(&base_dir, &extract_include_patterns(&segments));
-        Ok(Self { path, segments, included_hosts })
+        Ok(Self {
+            path,
+            segments,
+            included_hosts,
+            loaded_contents: Some(contents.into_bytes()),
+        })
     }
 
     pub fn path(&self) -> &Path {
@@ -307,33 +412,98 @@ impl SshConfig {
     /// Write the file back atomically (temp file + rename), backing up the previous contents to
     /// `<path>.sulafat.bak` and enforcing 0600 permissions on the result. Creates the parent
     /// directory with 0700 permissions if it didn't already exist.
-    pub fn save(&self) -> Result<(), ConfigError> {
+    pub fn save(&mut self) -> Result<(), ConfigError> {
         let contents = parser::render(&self.segments);
+
+        for host in self.list_hosts().iter().filter(|h| !h.read_only) {
+            validate_host(host)?;
+        }
 
         if let Some(parent) = self.path.parent() {
             let dir_existed = parent.exists();
             fs::create_dir_all(parent).map_err(|e| ConfigError::io(parent, e))?;
             #[cfg(unix)]
             if !dir_existed {
-                fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).map_err(|e| ConfigError::io(parent, e))?;
+                fs::set_permissions(parent, fs::Permissions::from_mode(0o700))
+                    .map_err(|e| ConfigError::io(parent, e))?;
             }
         }
 
-        if self.path.exists() {
-            let backup_path = self.backup_path();
-            fs::copy(&self.path, &backup_path).map_err(|e| ConfigError::io(&backup_path, e))?;
+        let current = match fs::read(&self.path) {
+            Ok(bytes) => Some(bytes),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Some(Vec::new()),
+            Err(e) => return Err(ConfigError::io(&self.path, e)),
+        };
+        if current.as_deref() != self.loaded_contents.as_deref() {
+            return Err(ConfigError::Conflict);
         }
 
-        let tmp_path = PathBuf::from(format!("{}.sulafat.tmp", self.path.display()));
-        fs::write(&tmp_path, &contents).map_err(|e| ConfigError::io(&tmp_path, e))?;
-        #[cfg(unix)]
-        fs::set_permissions(&tmp_path, fs::Permissions::from_mode(0o600)).map_err(|e| ConfigError::io(&tmp_path, e))?;
-        fs::rename(&tmp_path, &self.path).map_err(|e| ConfigError::io(&self.path, e))?;
+        self.validate_candidate(contents.as_bytes())?;
+        if let Some(old) = current.filter(|b| !b.is_empty()) {
+            self.rotate_backups(&old)?;
+        }
+        crate::atomic::write(&self.path, contents.as_bytes())
+            .map_err(|e| ConfigError::io(&self.path, e))?;
+        self.loaded_contents = Some(contents.into_bytes());
         Ok(())
     }
 
-    fn backup_path(&self) -> PathBuf {
-        PathBuf::from(format!("{}.sulafat.bak", self.path.display()))
+    fn backup_path(&self, generation: usize) -> PathBuf {
+        PathBuf::from(format!("{}.sulafat.bak.{generation}", self.path.display()))
+    }
+
+    fn rotate_backups(&self, current: &[u8]) -> Result<(), ConfigError> {
+        for generation in (1..3).rev() {
+            let from = self.backup_path(generation);
+            let to = self.backup_path(generation + 1);
+            if from.exists() {
+                fs::rename(&from, &to).map_err(|e| ConfigError::io(&to, e))?;
+            }
+        }
+        let first = self.backup_path(1);
+        crate::atomic::write(&first, current).map_err(|e| ConfigError::io(&first, e))
+    }
+
+    fn validate_candidate(&self, contents: &[u8]) -> Result<(), ConfigError> {
+        let parent = self.path.parent().unwrap_or_else(|| Path::new("."));
+        let mut tmp = tempfile::Builder::new()
+            .prefix(".sulafat-validate-")
+            .tempfile_in(parent)
+            .map_err(|e| ConfigError::io(parent, e))?;
+        use std::io::Write;
+        tmp.write_all(contents)
+            .map_err(|e| ConfigError::io(tmp.path(), e))?;
+        let output = Command::new("ssh")
+            .args(["-G", "-F"])
+            .arg(tmp.path())
+            .arg("sulafat-validation.invalid")
+            .output()
+            .map_err(|e| ConfigError::io("ssh", e))?;
+        if output.status.success() {
+            return Ok(());
+        }
+        let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(ConfigError::InvalidSshConfig(message))
+    }
+
+    pub fn restore_backup(&mut self, generation: usize) -> Result<(), ConfigError> {
+        if !(1..=3).contains(&generation) {
+            return Err(ConfigError::Validation {
+                field: "backup",
+                reason: "geração deve estar entre 1 e 3",
+            });
+        }
+        let backup = self.backup_path(generation);
+        let contents = fs::read(&backup).map_err(|e| ConfigError::io(&backup, e))?;
+        self.validate_candidate(&contents)?;
+        if let Ok(current) = fs::read(&self.path) {
+            if !current.is_empty() {
+                self.rotate_backups(&current)?;
+            }
+        }
+        crate::atomic::write(&self.path, &contents).map_err(|e| ConfigError::io(&self.path, e))?;
+        *self = Self::load_from(self.path.clone())?;
+        Ok(())
     }
 }
 
@@ -367,7 +537,7 @@ mod tests {
     fn save_roundtrips_when_nothing_changed() {
         let original = "# comment\nHost prod\n    HostName 10.0.0.1\n";
         let (_dir, path) = write_temp(original);
-        let cfg = SshConfig::load_from(&path).expect("load");
+        let mut cfg = SshConfig::load_from(&path).expect("load");
         cfg.save().expect("save");
         assert_eq!(fs::read_to_string(&path).unwrap(), original);
     }
@@ -376,12 +546,22 @@ mod tests {
     fn save_creates_backup_and_enforces_permissions() {
         let (_dir, path) = write_temp("Host prod\n    HostName 10.0.0.1\n");
         let mut cfg = SshConfig::load_from(&path).expect("load");
-        cfg.upsert_host(SshHost { alias: "prod".into(), host_name: Some("10.0.0.2".into()), ..Default::default() });
+        cfg.upsert_host(SshHost {
+            alias: "prod".into(),
+            host_name: Some("10.0.0.2".into()),
+            ..Default::default()
+        });
         cfg.save().expect("save");
 
-        let backup_path = PathBuf::from(format!("{}.sulafat.bak", path.display()));
-        assert_eq!(fs::read_to_string(&backup_path).unwrap(), "Host prod\n    HostName 10.0.0.1\n");
-        assert_eq!(fs::read_to_string(&path).unwrap(), "Host prod\n    HostName 10.0.0.2\n");
+        let backup_path = PathBuf::from(format!("{}.sulafat.bak.1", path.display()));
+        assert_eq!(
+            fs::read_to_string(&backup_path).unwrap(),
+            "Host prod\n    HostName 10.0.0.1\n"
+        );
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "Host prod\n    HostName 10.0.0.2\n"
+        );
 
         #[cfg(unix)]
         {
@@ -399,15 +579,92 @@ mod tests {
         writeln!(included, "Host included-host\n    HostName 10.0.0.9").unwrap();
 
         let main_path = dir.path().join("config");
-        fs::write(&main_path, "Include conf.d/*.conf\n\nHost prod\n    HostName 10.0.0.1\n").unwrap();
+        fs::write(
+            &main_path,
+            "Include conf.d/*.conf\n\nHost prod\n    HostName 10.0.0.1\n",
+        )
+        .unwrap();
 
-        let cfg = SshConfig::load_from(&main_path).expect("load");
+        let mut cfg = SshConfig::load_from(&main_path).expect("load");
         let hosts = cfg.list_hosts();
-        let inc = hosts.iter().find(|h| h.alias == "included-host").expect("included host present");
+        let inc = hosts
+            .iter()
+            .find(|h| h.alias == "included-host")
+            .expect("included host present");
         assert!(inc.read_only);
         assert_eq!(inc.host_name.as_deref(), Some("10.0.0.9"));
 
         cfg.save().expect("save");
-        assert_eq!(fs::read_to_string(&main_path).unwrap(), "Include conf.d/*.conf\n\nHost prod\n    HostName 10.0.0.1\n");
+        assert_eq!(
+            fs::read_to_string(&main_path).unwrap(),
+            "Include conf.d/*.conf\n\nHost prod\n    HostName 10.0.0.1\n"
+        );
+    }
+
+    #[test]
+    fn external_change_is_not_overwritten_and_own_saves_do_not_conflict() {
+        let (_dir, path) = write_temp("Host one\n");
+        let mut cfg = SshConfig::load_from(&path).unwrap();
+        fs::write(&path, "Host external\n").unwrap();
+        assert!(matches!(cfg.save(), Err(ConfigError::Conflict)));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "Host external\n");
+
+        let mut cfg = SshConfig::load_from(&path).unwrap();
+        cfg.save().unwrap();
+        cfg.save().unwrap();
+    }
+
+    #[test]
+    fn structured_fields_cannot_inject_directives() {
+        for host in [
+            SshHost::new("-V"),
+            SshHost::new("prod\nProxyCommand evil"),
+            SshHost {
+                alias: "prod".into(),
+                host_name: Some("server\rUser root".into()),
+                ..Default::default()
+            },
+        ] {
+            assert!(validate_host(&host).is_err());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_save_refuses_destination_symlink() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let victim = dir.path().join("victim");
+        fs::write(&victim, "intacto").unwrap();
+        let path = dir.path().join("config");
+        symlink(&victim, &path).unwrap();
+        let mut cfg = SshConfig::empty_at_default_path().unwrap();
+        cfg.path = path;
+        assert!(cfg.save().is_err());
+        assert_eq!(fs::read_to_string(victim).unwrap(), "intacto");
+    }
+
+    #[test]
+    fn backups_rotate_three_generations_and_can_be_restored() {
+        let (_dir, path) = write_temp("Host version-0\n");
+        let mut cfg = SshConfig::load_from(&path).unwrap();
+        for version in 1..=4 {
+            cfg.segments = parser::parse(&format!("Host version-{version}\n"));
+            cfg.save().unwrap();
+        }
+        assert_eq!(
+            fs::read_to_string(cfg.backup_path(1)).unwrap(),
+            "Host version-3\n"
+        );
+        assert_eq!(
+            fs::read_to_string(cfg.backup_path(2)).unwrap(),
+            "Host version-2\n"
+        );
+        assert_eq!(
+            fs::read_to_string(cfg.backup_path(3)).unwrap(),
+            "Host version-1\n"
+        );
+        cfg.restore_backup(2).unwrap();
+        assert_eq!(fs::read_to_string(path).unwrap(), "Host version-2\n");
     }
 }

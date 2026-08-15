@@ -1,4 +1,17 @@
 -------------------------------------------------------------------
+Sat Aug 15 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
+
+- Update to Sulafat 1.0.3:
+  * Validate SSH destinations and structured configuration fields.
+  * Correct quick-connect parsing for IPv6 addresses and ports.
+  * Validate candidate configurations with OpenSSH before activation.
+  * Detect external changes and refuse stale writes.
+  * Write SSH configuration and metadata atomically with restricted
+    permissions, symlink protection, durable commits, rotating backups,
+    and safe restoration.
+  * Surface load, conflict, validation, and persistence errors in the UI.
+
+-------------------------------------------------------------------
 Wed Aug 05 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
 
 - Update to Sulafat 1.0.2:

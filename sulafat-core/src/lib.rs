@@ -5,6 +5,7 @@
 //! toolkit-agnostic supporting types ([`metadata`], [`command`], [`watch`]). A future non-GTK
 //! frontend could be built against this crate unchanged.
 
+mod atomic;
 pub mod command;
 pub mod metadata;
 pub mod ssh_config;

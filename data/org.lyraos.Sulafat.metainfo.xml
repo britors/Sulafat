@@ -88,6 +88,11 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.0.3" date="2026-08-15">
+      <description>
+        <p>Hardens SSH configuration validation and persistence, adds IPv6 quick-connect support, conflict detection, rotating backups, and visible error handling.</p>
+      </description>
+    </release>
     <release version="1.0.2" date="2026-08-05">
       <description>
         <p>Removed the New Window entry from the application menu.</p>
