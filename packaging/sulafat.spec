@@ -10,7 +10,7 @@
 #
 
 Name:           sulafat
-Version:        1.0.3
+Version:        1.0.4
 Release:        0
 Summary:        SSH client for the Lyra OS ecosystem
 License:        GPL-3.0-or-later
@@ -104,6 +104,5 @@ python3 scripts/check-i18n.py
 %{_datadir}/icons/hicolor/symbolic/apps/org.lyraos.Sulafat-symbolic.svg
 %lang(es_ES) %{_datadir}/locale/es_ES/LC_MESSAGES/sulafat.mo
 %lang(pt_BR) %{_datadir}/locale/pt_BR/LC_MESSAGES/sulafat.mo
-%lang(zh_CN) %{_datadir}/locale/zh_CN/LC_MESSAGES/sulafat.mo
 
 %changelog

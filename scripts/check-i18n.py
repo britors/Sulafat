@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_FILES = list((ROOT / "sulafat-gtk" / "src").glob("*.rs"))
-CATALOGS = [ROOT / "po" / f"{locale}.po" for locale in ("pt_BR", "es_ES", "zh_CN")]
+CATALOGS = [ROOT / "po" / f"{locale}.po" for locale in ("pt_BR", "es_ES")]
 CALL = re.compile(r'\btr(?:_format)?\(\s*"((?:[^"\\]|\\.)*)"')
 PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
 
@@ -49,16 +49,13 @@ def main() -> None:
         with tempfile.NamedTemporaryFile(suffix=".mo") as output:
             subprocess.run(["msgfmt", "--check", "--check-format", "-o", output.name, path], check=True)
 
-    chinese = catalog(ROOT / "po" / "zh_CN.po")
-    assert any("\u4e00" <= char <= "\u9fff" for value in chinese.values() for char in value), "zh_CN has no CJK glyphs"
-
     # en-US is the source catalog and therefore also the missing-key/unsupported-locale fallback.
     for locale, expected_locale in {
         "en_US.UTF-8": "en-US", "pt_BR.UTF-8": "pt-BR", "es_ES.UTF-8": "es-ES",
-        "zh_CN.UTF-8": "zh-CN", "fr_FR.UTF-8": "en-US",
+        "fr_FR.UTF-8": "en-US",
     }.items():
         base = locale.split(".", 1)[0].lower()
-        actual = {"pt_br": "pt-BR", "es_es": "es-ES", "zh_cn": "zh-CN", "en_us": "en-US"}.get(base, "en-US")
+        actual = {"pt_br": "pt-BR", "es_es": "es-ES", "en_us": "en-US"}.get(base, "en-US")
         assert actual == expected_locale
 
     # User-facing builder/menu strings must go through tr(); technical identifiers are exempt.
@@ -69,7 +66,7 @@ def main() -> None:
             if suspicious.search(line) and not any(exempt in line for exempt in ('title("HostName")', 'title("ProxyJump")', 'title("Sulafat")')):
                 leftovers.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
     assert not leftovers, "untranslated UI literals:\n" + "\n".join(leftovers)
-    print(f"i18n: {len(expected)} UI messages, 3 translated catalogs, en-US source fallback")
+    print(f"i18n: {len(expected)} UI messages, pt-BR/es-ES catalogs, en-US source fallback")
 
 
 if __name__ == "__main__":

@@ -4,11 +4,9 @@
   <name>Sulafat</name>
   <name xml:lang="pt-BR">Sulafat</name>
   <name xml:lang="es-ES">Sulafat</name>
-  <name xml:lang="zh-CN">Sulafat</name>
   <summary>Connect to Linux/Unix hosts via SSH</summary>
   <summary xml:lang="pt-BR">Conecte-se a hosts Linux/Unix via SSH</summary>
   <summary xml:lang="es-ES">Conéctese a hosts Linux/Unix mediante SSH</summary>
-  <summary xml:lang="zh-CN">通过 SSH 连接到 Linux/Unix 主机</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <developer id="org.lyraos">
@@ -31,15 +29,9 @@
       Linux/Unix de escritorio y servidores. Funciona en cualquier distribución Linux moderna,
       con integración visual nativa con GNOME y Lyra mediante GTK4/libadwaita.
     </p>
-    <p xml:lang="zh-CN">
-      Sulafat 是 Lyra OS 生态系统中的 SSH 客户端，用于连接 Linux/Unix
-      桌面和服务器。它可在任何现代 Linux 发行版上运行，并通过 GTK4/libadwaita
-      与 GNOME 和 Lyra 实现原生视觉集成。
-    </p>
     <p>Features:</p>
     <p xml:lang="pt-BR">Recursos:</p>
     <p xml:lang="es-ES">Funciones:</p>
-    <p xml:lang="zh-CN">功能：</p>
     <ul>
       <li>Hosts managed straight from your existing ~/.ssh/config, with search, groups and color</li>
       <li>Sessions in tabs, powered by the real OpenSSH client and an embedded VTE terminal</li>
@@ -61,13 +53,6 @@
       <li>Conexión rápida a usuario@host sin guardar un perfil</li>
       <li>Un clic para abrir los archivos del host por SFTP en el gestor de archivos predeterminado</li>
     </ul>
-    <ul xml:lang="zh-CN">
-      <li>直接管理现有 ~/.ssh/config 中的主机，并支持搜索、分组和颜色</li>
-      <li>由真正的 OpenSSH 客户端和嵌入式 VTE 终端支持的标签式会话</li>
-      <li>密钥、ssh-agent、known_hosts、证书和 ProxyJump 均由 OpenSSH 处理</li>
-      <li>无需保存配置即可快速连接到 用户@主机</li>
-      <li>一键通过 SFTP 在默认文件管理器中打开主机文件</li>
-    </ul>
   </description>
 
   <launchable type="desktop-id">org.lyraos.Sulafat.desktop</launchable>
@@ -77,7 +62,6 @@
       <caption>Host list</caption>
       <caption xml:lang="pt-BR">Lista de hosts</caption>
       <caption xml:lang="es-ES">Lista de hosts</caption>
-      <caption xml:lang="zh-CN">主机列表</caption>
       <image>https://raw.githubusercontent.com/britors/Sulafat/main/data/screenshots/hosts.png</image>
     </screenshot>
   </screenshots>
@@ -88,6 +72,11 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.0.4" date="2026-08-16">
+      <description>
+        <p>Adds power off, restart, and log out actions to the System menu, with confirmation dialogs and login1 integration. The supported languages are now English, Portuguese, and Spanish.</p>
+      </description>
+    </release>
     <release version="1.0.3" date="2026-08-15">
       <description>
         <p>Hardens SSH configuration validation and persistence, adds IPv6 quick-connect support, conflict detection, rotating backups, and visible error handling.</p>

@@ -1,4 +1,12 @@
 -------------------------------------------------------------------
+Sun Aug 16 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
+
+- Update to Sulafat 1.0.4:
+  * Add power off, restart, and log out actions to the System menu.
+  * Confirm system actions before invoking systemd-logind over D-Bus.
+  * Support English, Brazilian Portuguese, and Spanish; remove Chinese.
+
+-------------------------------------------------------------------
 Sat Aug 15 00:00:00 UTC 2026 - rodrigo@w3ti.com.br
 
 - Update to Sulafat 1.0.3:

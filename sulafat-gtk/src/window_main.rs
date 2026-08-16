@@ -85,6 +85,68 @@ fn show_error(parent: &impl IsA<gtk::Widget>, message: &str) {
     dialog.present(Some(parent));
 }
 
+fn login1_manager() -> Result<gio::DBusProxy, glib::Error> {
+    gio::DBusProxy::for_bus_sync(
+        gio::BusType::System,
+        gio::DBusProxyFlags::NONE,
+        None,
+        "org.freedesktop.login1",
+        "/org/freedesktop/login1",
+        "org.freedesktop.login1.Manager",
+        gio::Cancellable::NONE,
+    )
+}
+
+fn run_system_action(window: &adw::ApplicationWindow, method: &str) {
+    let result = (|| {
+        let manager = login1_manager()?;
+        if method == "Terminate" {
+            let reply = manager.call_sync(
+                "GetSessionByPID",
+                Some(&(std::process::id(),).to_variant()),
+                gio::DBusCallFlags::NONE,
+                -1,
+                gio::Cancellable::NONE,
+            )?;
+            let (session_path,) = reply.get::<(glib::variant::ObjectPath,)>().ok_or_else(|| {
+                glib::Error::new(gio::IOErrorEnum::InvalidData, "invalid session path")
+            })?;
+            let session = gio::DBusProxy::for_bus_sync(
+                gio::BusType::System,
+                gio::DBusProxyFlags::NONE,
+                None,
+                "org.freedesktop.login1",
+                &session_path,
+                "org.freedesktop.login1.Session",
+                gio::Cancellable::NONE,
+            )?;
+            session.call_sync(
+                "Terminate",
+                None,
+                gio::DBusCallFlags::NONE,
+                -1,
+                gio::Cancellable::NONE,
+            )?;
+        } else {
+            manager.call_sync(
+                method,
+                Some(&(true,).to_variant()),
+                gio::DBusCallFlags::NONE,
+                -1,
+                gio::Cancellable::NONE,
+            )?;
+        }
+        Ok::<(), glib::Error>(())
+    })();
+
+    if let Err(error) = result {
+        let dialog =
+            adw::AlertDialog::new(Some(&tr("System action failed")), Some(&error.to_string()));
+        dialog.add_response("ok", &tr("OK"));
+        dialog.present(Some(window));
+    }
+}
+
 fn refresh(state: &Rc<RefCell<AppState>>, host_list: &HostList, tab_view: &adw::TabView) {
     let window_id = Rc::as_ptr(state) as usize;
     let borrowed = state.borrow();
@@ -205,6 +267,11 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         Some("win.restore-backup"),
     );
     app_menu.append_section(None, &settings_section);
+    let system_menu = gio::Menu::new();
+    system_menu.append(Some(&tr("Power off")), Some("win.power-off"));
+    system_menu.append(Some(&tr("Restart")), Some("win.restart"));
+    system_menu.append(Some(&tr("Log out")), Some("win.log-out"));
+    app_menu.append_submenu(Some(&tr("System")), &system_menu);
     let about_section = gio::Menu::new();
     about_section.append(Some(&tr("About Sulafat")), Some("win.about"));
     app_menu.append_section(None, &about_section);
@@ -591,6 +658,40 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         }
     ));
     window.add_action(&about_action);
+
+    for (action_name, method, heading, body) in [
+        (
+            "power-off",
+            "PowerOff",
+            tr("Power off?"),
+            tr("The computer and all active sessions will be powered off."),
+        ),
+        (
+            "restart",
+            "Reboot",
+            tr("Restart?"),
+            tr("The computer will restart and all active sessions will end."),
+        ),
+        (
+            "log-out",
+            "Terminate",
+            tr("Log out?"),
+            tr("Your session and all active applications will be closed."),
+        ),
+    ] {
+        let action = gio::SimpleAction::new(action_name, None);
+        action.connect_activate(clone!(
+            #[weak]
+            window,
+            move |_, _| {
+                let action_window = window.clone();
+                confirm(&window, &heading, &body, move || {
+                    run_system_action(&action_window, method);
+                });
+            }
+        ));
+        window.add_action(&action);
+    }
 
     let focus_search_action = gio::SimpleAction::new("focus-search", None);
     focus_search_action.connect_activate(clone!(

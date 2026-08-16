@@ -28,7 +28,6 @@ fn normalize_locale(raw: &str) -> &'static str {
     match base.as_str() {
         "pt" | "pt_br" => "pt-BR",
         "es" | "es_es" => "es-ES",
-        "zh" | "zh_cn" | "zh_hans" => "zh-CN",
         "en" | "en_us" | "c" | "posix" => "en-US",
         _ => "en-US",
     }
@@ -51,7 +50,6 @@ pub fn init() {
     let posix_locale = match locale {
         "pt-BR" => "pt_BR.UTF-8",
         "es-ES" => "es_ES.UTF-8",
-        "zh-CN" => "zh_CN.UTF-8",
         _ => "en_US.UTF-8",
     };
     let _ = setlocale(LocaleCategory::LcMessages, posix_locale);
@@ -71,7 +69,6 @@ mod tests {
         assert_eq!(normalize_locale("en_US.UTF-8"), "en-US");
         assert_eq!(normalize_locale("pt_BR.UTF-8@custom"), "pt-BR");
         assert_eq!(normalize_locale("es_ES.utf8"), "es-ES");
-        assert_eq!(normalize_locale("zh_CN.UTF-8"), "zh-CN");
         assert_eq!(normalize_locale("fr_FR.UTF-8"), "en-US");
         assert_eq!(normalize_locale("../../pt_BR"), "en-US");
     }
@@ -79,7 +76,7 @@ mod tests {
     #[test]
     fn locale_environment_uses_posix_precedence() {
         let vars = HashMap::from([
-            ("LANG", "zh_CN.UTF-8".to_string()),
+            ("LANG", "en_US.UTF-8".to_string()),
             ("LC_MESSAGES", "es_ES.UTF-8".to_string()),
             ("LC_ALL", "pt_BR.UTF-8".to_string()),
         ]);
@@ -92,7 +89,6 @@ mod tests {
             ("en_US.UTF-8", "en-US"),
             ("pt_BR.UTF-8", "pt-BR"),
             ("es_ES.UTF-8", "es-ES"),
-            ("zh_CN.UTF-8", "zh-CN"),
             ("fr_FR.UTF-8", "en-US"),
         ] {
             assert_eq!(
