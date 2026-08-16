@@ -137,18 +137,6 @@ msgstr "No se pudo cargar la configuración SSH"
 msgid "Sulafat is read-only until the configuration can be loaded."
 msgstr "Sulafat será de solo lectura hasta que se pueda cargar la configuración."
 
-msgid "System"
-msgstr "Sistema"
-
-msgid "Power off"
-msgstr "Apagar"
-
-msgid "Restart"
-msgstr "Reiniciar"
-
-msgid "Log out"
-msgstr "Cerrar sesión"
-
 msgid "System action failed"
 msgstr "Falló la acción del sistema"
 
