@@ -267,11 +267,6 @@ pub fn build(app: &adw::Application, initial_host: Option<SshHost>) {
         Some("win.restore-backup"),
     );
     app_menu.append_section(None, &settings_section);
-    let system_menu = gio::Menu::new();
-    system_menu.append(Some(&tr("Power off")), Some("win.power-off"));
-    system_menu.append(Some(&tr("Restart")), Some("win.restart"));
-    system_menu.append(Some(&tr("Log out")), Some("win.log-out"));
-    app_menu.append_submenu(Some(&tr("System")), &system_menu);
     let about_section = gio::Menu::new();
     about_section.append(Some(&tr("About Sulafat")), Some("win.about"));
     app_menu.append_section(None, &about_section);
